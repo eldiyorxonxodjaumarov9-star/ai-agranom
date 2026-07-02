@@ -1,7 +1,12 @@
 const hits = new Map<string, { count: number; resetAt: number }>();
 
-const WINDOW_MS = 15 * 60 * 1000;
-const MAX_REQUESTS = 30;
+const WINDOW_MS = 60 * 1000;
+const MAX_REQUESTS = 20;
+
+export const RATE_LIMIT_ERROR = {
+  success: false as const,
+  error: "Too many requests. Please try again later.",
+};
 
 export function checkRateLimit(key: string): boolean {
   const now = Date.now();
@@ -18,6 +23,10 @@ export function checkRateLimit(key: string): boolean {
 
   entry.count += 1;
   return true;
+}
+
+export function buildRateLimitKey(ip: string, keyFingerprint: string): string {
+  return `${ip}:${keyFingerprint}`;
 }
 
 export function getClientIp(headers: Headers): string {

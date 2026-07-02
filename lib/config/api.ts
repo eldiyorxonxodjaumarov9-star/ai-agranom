@@ -1,17 +1,16 @@
 /**
- * API base URL for client-side requests.
- * Vercel deployda bo'sh qoldiring — same-origin /api/ai/* ishlaydi.
- * Alohida API server bo'lsa: NEXT_PUBLIC_API_URL=https://api.example.com
+ * Frontend chat — server-side proxy (AGRO_API_KEY brauzerga chiqmaydi).
  */
-export function getApiBaseUrl(): string {
-  if (typeof window !== "undefined") {
-    return process.env.NEXT_PUBLIC_API_URL?.replace(/\/$/, "") ?? "";
-  }
-  return process.env.NEXT_PUBLIC_API_URL?.replace(/\/$/, "") ?? "";
+export function getChatEndpoint(stream = false): string {
+  const base = process.env.NEXT_PUBLIC_API_URL?.replace(/\/$/, "") ?? "";
+  const path = stream ? "/api/chat?stream=true" : "/api/chat";
+  return `${base}${path}`;
 }
 
-export function getAgronomEndpoint(stream = false): string {
-  const base = getApiBaseUrl();
-  const path = stream ? "/api/ai/agronom?stream=true" : "/api/ai/agronom";
+export function getPublicChatEndpoint(stream = false): string {
+  const base = process.env.NEXT_PUBLIC_API_URL?.replace(/\/$/, "") ?? "";
+  const path = stream
+    ? "/api/agronom/chat?stream=true"
+    : "/api/agronom/chat";
   return `${base}${path}`;
 }

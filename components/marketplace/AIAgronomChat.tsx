@@ -7,6 +7,8 @@ import {
   loadChatHistory,
   saveChatHistory,
   clearChatHistory,
+  getOrCreateSessionId,
+  resetSessionId,
   generateMessageId,
 } from "@/lib/chat/storage";
 import { streamAgronomReply } from "@/lib/api/agronom";
@@ -52,10 +54,7 @@ export default function AIAgronomChat({
     };
 
     const assistantId = generateMessageId();
-    const history = messages.map((m) => ({
-      role: m.role,
-      content: m.content,
-    }));
+    const sessionId = getOrCreateSessionId();
 
     setMessages((prev) => [...prev, userMessage]);
     setInputValue("");
@@ -63,7 +62,9 @@ export default function AIAgronomChat({
     setIsStreaming(false);
 
     try {
-      await streamAgronomReply(text, history, {
+      await streamAgronomReply(
+        { message: text, language: "auto", sessionId },
+        {
         onChunk: (content) => {
           setIsStreaming(true);
           setMessages((prev) => {
@@ -111,7 +112,8 @@ export default function AIAgronomChat({
             return [...prev, errorMessage];
           });
         },
-      });
+      }
+      );
     } catch {
       setMessages((prev) => [
         ...prev,
@@ -126,11 +128,12 @@ export default function AIAgronomChat({
       setIsLoading(false);
       setIsStreaming(false);
     }
-  }, [inputValue, isLoading, messages]);
+  }, [inputValue, isLoading]);
 
   const handleClear = useCallback(() => {
     setMessages([]);
     clearChatHistory();
+    resetSessionId();
   }, []);
 
   return (

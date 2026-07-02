@@ -1,8 +1,7 @@
-import type { ChatHistoryItem } from "@/lib/chat/types";
-import { getAgronomEndpoint } from "@/lib/config/api";
+import { getChatEndpoint } from "@/lib/config/api";
+import type { ChatApiResponse } from "@/lib/agronom/api-types";
 
-const ERROR_MESSAGE =
-  "Kechirasiz, hozir javob berishda muammo bo'ldi. Iltimos, qayta urinib ko'ring.";
+const ERROR_MESSAGE = "AI javob berishda muammo bo'ldi";
 
 export interface AgronomStreamCallbacks {
   onChunk: (content: string) => void;
@@ -10,24 +9,33 @@ export interface AgronomStreamCallbacks {
   onError: (message: string) => void;
 }
 
+export interface ChatRequestOptions {
+  message: string;
+  language?: string;
+  sessionId?: string;
+}
+
 export async function streamAgronomReply(
-  message: string,
-  history: ChatHistoryItem[],
+  options: ChatRequestOptions,
   callbacks: AgronomStreamCallbacks
 ): Promise<void> {
-  const response = await fetch(getAgronomEndpoint(true), {
+  const response = await fetch(getChatEndpoint(true), {
     method: "POST",
     headers: {
       "Content-Type": "application/json",
       Accept: "text/event-stream",
     },
-    body: JSON.stringify({ message, history }),
+    body: JSON.stringify({
+      message: options.message,
+      language: options.language ?? "auto",
+      sessionId: options.sessionId,
+    }),
   });
 
   if (!response.ok) {
-    const data = await response.json().catch(() => ({}));
+    const data = (await response.json().catch(() => ({}))) as ChatApiResponse;
     callbacks.onError(
-      (data as { error?: string }).error || ERROR_MESSAGE
+      !data.success ? data.error : ERROR_MESSAGE
     );
     return;
   }
@@ -61,10 +69,11 @@ export async function streamAgronomReply(
           content?: string;
           done?: boolean;
           answer?: string;
+          success?: boolean;
           error?: string;
         };
 
-        if (parsed.error) {
+        if (parsed.success === false && parsed.error) {
           callbacks.onError(parsed.error);
           return;
         }
@@ -78,7 +87,7 @@ export async function streamAgronomReply(
           fullAnswer = parsed.answer;
         }
       } catch {
-        // skip malformed SSE lines
+        // skip malformed SSE
       }
     }
   }
@@ -87,23 +96,22 @@ export async function streamAgronomReply(
 }
 
 export async function fetchAgronomReply(
-  message: string,
-  history: ChatHistoryItem[]
+  options: ChatRequestOptions
 ): Promise<string> {
-  const response = await fetch(getAgronomEndpoint(false), {
+  const response = await fetch(getChatEndpoint(false), {
     method: "POST",
     headers: { "Content-Type": "application/json" },
-    body: JSON.stringify({ message, history }),
+    body: JSON.stringify({
+      message: options.message,
+      language: options.language ?? "auto",
+      sessionId: options.sessionId,
+    }),
   });
 
-  const data = (await response.json()) as { answer?: string; error?: string };
+  const data = (await response.json()) as ChatApiResponse;
 
-  if (!response.ok) {
-    throw new Error(data.error || ERROR_MESSAGE);
-  }
-
-  if (!data.answer) {
-    throw new Error(ERROR_MESSAGE);
+  if (!response.ok || !data.success) {
+    throw new Error(!data.success ? data.error : ERROR_MESSAGE);
   }
 
   return data.answer;

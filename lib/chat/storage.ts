@@ -1,5 +1,5 @@
 import type { ChatMessage } from "./types";
-import { CHAT_STORAGE_KEY, MAX_STORED_MESSAGES } from "./types";
+import { CHAT_STORAGE_KEY, SESSION_STORAGE_KEY, MAX_STORED_MESSAGES } from "./types";
 
 export function loadChatHistory(): ChatMessage[] {
   if (typeof window === "undefined") return [];
@@ -37,6 +37,27 @@ export function saveChatHistory(messages: ChatMessage[]): void {
 export function clearChatHistory(): void {
   if (typeof window === "undefined") return;
   localStorage.removeItem(CHAT_STORAGE_KEY);
+  localStorage.removeItem(SESSION_STORAGE_KEY);
+}
+
+export function getOrCreateSessionId(): string {
+  if (typeof window === "undefined") return "";
+
+  try {
+    const existing = localStorage.getItem(SESSION_STORAGE_KEY);
+    if (existing) return existing;
+
+    const id = `sess-${Date.now()}-${Math.random().toString(36).slice(2, 11)}`;
+    localStorage.setItem(SESSION_STORAGE_KEY, id);
+    return id;
+  } catch {
+    return `sess-${Date.now()}`;
+  }
+}
+
+export function resetSessionId(): void {
+  if (typeof window === "undefined") return;
+  localStorage.removeItem(SESSION_STORAGE_KEY);
 }
 
 export function generateMessageId(): string {

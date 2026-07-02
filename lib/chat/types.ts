@@ -23,4 +23,5 @@ export interface AgronomResponseBody {
 }
 
 export const CHAT_STORAGE_KEY = "agro-olam-ai-agronom-chat";
+export const SESSION_STORAGE_KEY = "agro-olam-session-id";
 export const MAX_STORED_MESSAGES = 50;

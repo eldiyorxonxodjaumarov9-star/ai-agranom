@@ -1,0 +1,183 @@
+{
+  "openapi": "3.0.3",
+  "info": {
+    "title": "Agro Olam AI Agronom API",
+    "description": "Professional public API for AI agronomy chat. Use Bearer token authentication.",
+    "version": "1.0.0",
+    "contact": {
+      "name": "Agro Olam",
+      "url": "https://agroolam.uz"
+    }
+  },
+  "servers": [
+    {
+      "url": "http://localhost:3000",
+      "description": "Local development"
+    },
+    {
+      "url": "https://agroolam.uz",
+      "description": "Production"
+    }
+  ],
+  "components": {
+    "securitySchemes": {
+      "BearerAuth": {
+        "type": "http",
+        "scheme": "bearer",
+        "description": "AGRO_API_KEY from Vercel Environment Variables"
+      }
+    },
+    "schemas": {
+      "ChatRequest": {
+        "type": "object",
+        "required": ["message"],
+        "properties": {
+          "message": {
+            "type": "string",
+            "example": "Pomidor barglari sarg'aymoqda",
+            "maxLength": 2000
+          },
+          "language": {
+            "type": "string",
+            "enum": ["auto", "uz", "ru", "en"],
+            "default": "auto"
+          },
+          "sessionId": {
+            "type": "string",
+            "example": "user-session-123",
+            "description": "Optional session ID for multi-turn conversation"
+          }
+        }
+      },
+      "ChatSuccessResponse": {
+        "type": "object",
+        "properties": {
+          "success": { "type": "boolean", "example": true },
+          "answer": { "type": "string" },
+          "language": { "type": "string", "example": "uz" },
+          "service": { "type": "string", "example": "agro-olam-ai-agronom" }
+        }
+      },
+      "ErrorResponse": {
+        "type": "object",
+        "properties": {
+          "success": { "type": "boolean", "example": false },
+          "error": { "type": "string" }
+        }
+      },
+      "HealthResponse": {
+        "type": "object",
+        "properties": {
+          "status": { "type": "string", "example": "ok" },
+          "service": { "type": "string", "example": "agro-olam-ai-agronom" },
+          "version": { "type": "string", "example": "1.0.0" }
+        }
+      }
+    }
+  },
+  "paths": {
+    "/api/agronom/health": {
+      "get": {
+        "summary": "Health check",
+        "tags": ["System"],
+        "responses": {
+          "200": {
+            "description": "API is healthy",
+            "content": {
+              "application/json": {
+                "schema": { "$ref": "#/components/schemas/HealthResponse" },
+                "example": {
+                  "status": "ok",
+                  "service": "agro-olam-ai-agronom",
+                  "version": "1.0.0"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/agronom/chat": {
+      "post": {
+        "summary": "AI Agronom chat",
+        "description": "Send an agronomy question and receive AI-powered advice.",
+        "tags": ["Chat"],
+        "security": [{ "BearerAuth": [] }],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": { "$ref": "#/components/schemas/ChatRequest" },
+              "examples": {
+                "agro": {
+                  "summary": "Agro question",
+                  "value": {
+                    "message": "Pomidor barglari sarg'aymoqda",
+                    "language": "auto",
+                    "sessionId": "session-123"
+                  }
+                },
+                "nonAgro": {
+                  "summary": "Non-agro question",
+                  "value": {
+                    "message": "Messi kim?",
+                    "language": "uz"
+                  }
+                }
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Successful response",
+            "content": {
+              "application/json": {
+                "schema": { "$ref": "#/components/schemas/ChatSuccessResponse" }
+              }
+            }
+          },
+          "400": {
+            "description": "Validation error",
+            "content": {
+              "application/json": {
+                "schema": { "$ref": "#/components/schemas/ErrorResponse" },
+                "example": { "success": false, "error": "message bo'sh bo'lmasligi kerak." }
+              }
+            }
+          },
+          "401": {
+            "description": "Unauthorized",
+            "content": {
+              "application/json": {
+                "schema": { "$ref": "#/components/schemas/ErrorResponse" },
+                "example": { "success": false, "error": "Unauthorized" }
+              }
+            }
+          },
+          "429": {
+            "description": "Rate limit exceeded",
+            "content": {
+              "application/json": {
+                "schema": { "$ref": "#/components/schemas/ErrorResponse" },
+                "example": {
+                  "success": false,
+                  "error": "Too many requests. Please try again later."
+                }
+              }
+            }
+          },
+          "500": {
+            "description": "Server error",
+            "content": {
+              "application/json": {
+                "schema": { "$ref": "#/components/schemas/ErrorResponse" },
+                "example": { "success": false, "error": "AI javob berishda muammo bo'ldi" }
+              }
+            }
+          }
+        }
+      }
+    }
+  }
+}

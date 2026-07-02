@@ -1,6 +1,7 @@
 import type { ChatCompletionMessageParam } from "openai/resources/chat/completions";
 import { buildAgronomPrompt } from "../prompts/system";
 import { retrieveContext } from "../rag/provider";
+import type { SupportedLanguage } from "@/lib/agronom/api-types";
 import {
   getOpenAIClient,
   OPENAI_MODEL,
@@ -15,15 +16,17 @@ export interface ChatHistoryItem {
 export interface AgronomRequest {
   message: string;
   history?: ChatHistoryItem[];
+  language?: SupportedLanguage;
 }
 
 function buildMessages(
   message: string,
   history: ChatHistoryItem[],
-  ragContext: string
+  ragContext: string,
+  language: SupportedLanguage = "uz"
 ): ChatCompletionMessageParam[] {
   return [
-    { role: "system", content: buildAgronomPrompt(ragContext) },
+    { role: "system", content: buildAgronomPrompt(ragContext, language) },
     ...history.slice(-10).map((h) => ({
       role: h.role as "user" | "assistant",
       content: h.content,
@@ -36,11 +39,13 @@ export async function generateAgronomAnswer(
   request: AgronomRequest
 ): Promise<string> {
   const client = getOpenAIClient();
+  const language = request.language ?? "uz";
   const ragContext = await retrieveContext(request.message);
   const messages = buildMessages(
     request.message,
     request.history ?? [],
-    ragContext
+    ragContext,
+    language
   );
 
   const completion = await client.chat.completions.create({
@@ -63,11 +68,13 @@ export async function* streamAgronomAnswer(
   request: AgronomRequest
 ): AsyncGenerator<string, void, unknown> {
   const client = getOpenAIClient();
+  const language = request.language ?? "uz";
   const ragContext = await retrieveContext(request.message);
   const messages = buildMessages(
     request.message,
     request.history ?? [],
-    ragContext
+    ragContext,
+    language
   );
 
   const stream = await client.chat.completions.create({
