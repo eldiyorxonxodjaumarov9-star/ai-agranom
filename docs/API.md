@@ -6,7 +6,7 @@ Professional public API for AI agronomy chat. Mobile apps, Telegram bots, CRM sy
 
 | Environment | URL |
 |-------------|-----|
-| Production | `https://agroolam.uz` |
+| Production | `https://ai-agranom.vercel.app` |
 | Local | `http://localhost:3000` |
 
 ## Authentication
@@ -41,7 +41,7 @@ The Agro Olam website chat uses internal route `POST /api/chat` (no API key in b
 ### `GET /api/agronom/health`
 
 ```bash
-curl https://agroolam.uz/api/agronom/health
+curl https://ai-agranom.vercel.app/api/agronom/health
 ```
 
 **Response:**
@@ -115,7 +115,7 @@ Authorization: Bearer YOUR_API_KEY
 **Agro question:**
 
 ```bash
-curl -X POST https://agroolam.uz/api/agronom/chat \
+curl -X POST https://ai-agranom.vercel.app/api/agronom/chat \
   -H "Content-Type: application/json" \
   -H "Authorization: Bearer YOUR_API_KEY" \
   -d '{"message":"Pomidor barglari sarg'\''aymoqda","language":"auto"}'
@@ -124,7 +124,7 @@ curl -X POST https://agroolam.uz/api/agronom/chat \
 **Non-agro question (rejection):**
 
 ```bash
-curl -X POST https://agroolam.uz/api/agronom/chat \
+curl -X POST https://ai-agranom.vercel.app/api/agronom/chat \
   -H "Content-Type: application/json" \
   -H "Authorization: Bearer YOUR_API_KEY" \
   -d '{"message":"Messi kim?","language":"uz"}'
@@ -133,7 +133,7 @@ curl -X POST https://agroolam.uz/api/agronom/chat \
 **With session:**
 
 ```bash
-curl -X POST https://agroolam.uz/api/agronom/chat \
+curl -X POST https://ai-agranom.vercel.app/api/agronom/chat \
   -H "Content-Type: application/json" \
   -H "Authorization: Bearer YOUR_API_KEY" \
   -d '{"message":"Qaysi o'\''git yaxshi?","sessionId":"user-42"}'
@@ -144,7 +144,7 @@ curl -X POST https://agroolam.uz/api/agronom/chat \
 ## JavaScript (fetch)
 
 ```javascript
-const API_URL = "https://agroolam.uz/api/agronom/chat";
+const API_URL = "https://ai-agranom.vercel.app/api/agronom/chat";
 const API_KEY = process.env.AGRO_API_KEY; // server-side only!
 
 async function askAgronom(message, sessionId) {
@@ -177,7 +177,7 @@ bot.on("message", async (msg) => {
   const chatId = msg.chat.id;
   const text = msg.text;
 
-  const res = await fetch("https://agroolam.uz/api/agronom/chat", {
+  const res = await fetch("https://ai-agranom.vercel.app/api/agronom/chat", {
     method: "POST",
     headers: {
       "Content-Type": "application/json",
@@ -221,6 +221,7 @@ final response = await http.post(
 Allowed origins (configurable via `ALLOWED_ORIGINS`):
 
 - `http://localhost:3000`
+- `https://ai-agranom.vercel.app`
 - `https://agroolam.uz`
 - `https://www.agroolam.uz`
 
@@ -246,9 +247,9 @@ Allowed origins (configurable via `ALLOWED_ORIGINS`):
 
 ## Interactive Docs
 
-Open Swagger UI: `https://agroolam.uz/api/docs`
+Open Swagger UI: `https://ai-agranom.vercel.app/api/docs`
 
-OpenAPI JSON: `https://agroolam.uz/api/docs/openapi.json`
+OpenAPI JSON: `https://ai-agranom.vercel.app/api/docs/openapi.json`
 
 ---
 

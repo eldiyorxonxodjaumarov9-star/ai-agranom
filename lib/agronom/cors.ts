@@ -3,7 +3,7 @@ import type { NextRequest } from "next/server";
 function getAllowedOrigins(): string[] {
   const raw =
     process.env.ALLOWED_ORIGINS ||
-    "http://localhost:3000,https://agroolam.uz,https://www.agroolam.uz";
+    "http://localhost:3000,https://ai-agranom.vercel.app,https://agroolam.uz,https://www.agroolam.uz";
 
   return raw
     .split(",")

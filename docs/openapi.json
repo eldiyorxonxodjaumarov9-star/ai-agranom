@@ -6,17 +6,17 @@
     "version": "1.0.0",
     "contact": {
       "name": "Agro Olam",
-      "url": "https://agroolam.uz"
+      "url": "https://ai-agranom.vercel.app"
     }
   },
   "servers": [
     {
-      "url": "http://localhost:3000",
-      "description": "Local development"
+      "url": "https://ai-agranom.vercel.app",
+      "description": "Vercel Production"
     },
     {
-      "url": "https://agroolam.uz",
-      "description": "Production"
+      "url": "http://localhost:3000",
+      "description": "Local development"
     }
   ],
   "components": {

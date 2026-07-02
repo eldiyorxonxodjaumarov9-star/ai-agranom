@@ -11,8 +11,8 @@ const LOCAL_SERVER = {
 };
 
 const PRODUCTION_SERVER = {
-  url: "https://agroolam.uz",
-  description: "Production",
+  url: "https://ai-agranom.vercel.app",
+  description: "Vercel Production",
 };
 
 function getOrderedServers() {
