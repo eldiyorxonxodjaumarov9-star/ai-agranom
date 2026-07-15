@@ -17,22 +17,53 @@ export interface AgronomRequest {
   message: string;
   history?: ChatHistoryItem[];
   language?: SupportedLanguage;
+  images?: string[];
+  cropMemory?: string;
+  weather?: string;
 }
 
 function buildMessages(
   message: string,
   history: ChatHistoryItem[],
   ragContext: string,
-  language: SupportedLanguage = "uz"
+  language: SupportedLanguage = "uz",
+  extras?: { cropMemory?: string; weather?: string; images?: string[] }
 ): ChatCompletionMessageParam[] {
-  return [
-    { role: "system", content: buildAgronomPrompt(ragContext, language) },
+  const system = buildAgronomPrompt(ragContext, language, {
+    cropMemory: extras?.cropMemory,
+    weather: extras?.weather,
+  });
+
+  const messages: ChatCompletionMessageParam[] = [
+    { role: "system", content: system },
     ...history.slice(-10).map((h) => ({
       role: h.role as "user" | "assistant",
       content: h.content,
     })),
-    { role: "user", content: message },
   ];
+
+  const imgs = extras?.images?.slice(0, 10) || [];
+  if (imgs.length > 0) {
+    messages.push({
+      role: "user",
+      content: [
+        {
+          type: "text",
+          text:
+            message +
+            `\n\n(${imgs.length} ta rasm yuborildi. Har birini alohida tahlil qil.)`,
+        },
+        ...imgs.map((url) => ({
+          type: "image_url" as const,
+          image_url: { url, detail: "low" as const },
+        })),
+      ],
+    });
+  } else {
+    messages.push({ role: "user", content: message });
+  }
+
+  return messages;
 }
 
 export async function generateAgronomAnswer(
@@ -45,7 +76,12 @@ export async function generateAgronomAnswer(
     request.message,
     request.history ?? [],
     ragContext,
-    language
+    language,
+    {
+      cropMemory: request.cropMemory,
+      weather: request.weather,
+      images: request.images,
+    }
   );
 
   const completion = await client.chat.completions.create({
@@ -56,11 +92,7 @@ export async function generateAgronomAnswer(
   });
 
   const answer = completion.choices[0]?.message?.content?.trim();
-
-  if (!answer) {
-    throw new Error("Empty response from OpenAI");
-  }
-
+  if (!answer) throw new Error("Empty response from OpenAI");
   return answer;
 }
 
@@ -74,7 +106,12 @@ export async function* streamAgronomAnswer(
     request.message,
     request.history ?? [],
     ragContext,
-    language
+    language,
+    {
+      cropMemory: request.cropMemory,
+      weather: request.weather,
+      images: request.images,
+    }
   );
 
   const stream = await client.chat.completions.create({
@@ -87,8 +124,6 @@ export async function* streamAgronomAnswer(
 
   for await (const chunk of stream) {
     const content = chunk.choices[0]?.delta?.content;
-    if (content) {
-      yield content;
-    }
+    if (content) yield content;
   }
 }

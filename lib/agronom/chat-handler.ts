@@ -13,6 +13,7 @@ import type {
   ChatApiErrorResponse,
   ChatApiSuccessResponse,
 } from "@/lib/agronom/api-types";
+import { detectLanguage } from "@/lib/agronom/language";
 
 const AI_ERROR: ChatApiErrorResponse = {
   success: false,
@@ -23,23 +24,37 @@ export interface ProcessChatInput {
   message: string;
   language: SupportedLanguage;
   sessionId?: string;
+  images?: string[];
+  cropMemory?: string;
+  weather?: string;
+}
+
+/** API response til maydoni: auto bo‘lsa detect qilinadi (uz/ru/en) */
+export function responseLanguage(
+  language: SupportedLanguage,
+  message: string
+): string {
+  if (language === "auto") return detectLanguage(message);
+  return language;
+}
+
+function toRequest(input: ProcessChatInput): AgronomRequest {
+  const history = input.sessionId ? getSessionHistory(input.sessionId) : [];
+  return {
+    message: input.message,
+    history,
+    language: input.language,
+    images: input.images,
+    cropMemory: input.cropMemory,
+    weather: input.weather,
+  };
 }
 
 export async function processChat(
   input: ProcessChatInput
 ): Promise<ChatApiSuccessResponse | ChatApiErrorResponse> {
   try {
-    const history = input.sessionId
-      ? getSessionHistory(input.sessionId)
-      : [];
-
-    const request: AgronomRequest = {
-      message: input.message,
-      history,
-      language: input.language,
-    };
-
-    const answer = await generateAgronomAnswer(request);
+    const answer = await generateAgronomAnswer(toRequest(input));
 
     if (input.sessionId) {
       appendSessionHistory(input.sessionId, input.message, answer);
@@ -48,7 +63,7 @@ export async function processChat(
     return {
       success: true,
       answer,
-      language: input.language,
+      language: responseLanguage(input.language, input.message),
       service: SERVICE_NAME,
     };
   } catch (error) {
@@ -60,17 +75,9 @@ export async function processChat(
 export async function* processChatStream(
   input: ProcessChatInput
 ): AsyncGenerator<string, string, unknown> {
-  const history = input.sessionId ? getSessionHistory(input.sessionId) : [];
-
-  const request: AgronomRequest = {
-    message: input.message,
-    history,
-    language: input.language,
-  };
-
   let fullAnswer = "";
 
-  for await (const chunk of streamAgronomAnswer(request)) {
+  for await (const chunk of streamAgronomAnswer(toRequest(input))) {
     fullAnswer += chunk;
     yield chunk;
   }

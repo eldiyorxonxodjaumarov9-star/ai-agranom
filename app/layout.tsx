@@ -1,16 +1,17 @@
 import type { Metadata } from "next";
-import { Inter } from "next/font/google";
+import { Outfit } from "next/font/google";
 import "./globals.css";
 
-const inter = Inter({
-  subsets: ["latin", "cyrillic"],
-  variable: "--font-inter",
+const outfit = Outfit({
+  subsets: ["latin", "latin-ext"],
+  variable: "--font-outfit",
+  display: "swap",
 });
 
 export const metadata: Metadata = {
-  title: "Agro Olam — Aqlli Agro Marketplace",
+  title: "Agro Olam AI Agronom — Sun'iy intellekt agronom",
   description:
-    "Agro Olam — mahsulotlar, xizmatlar va AI agronom maslahatlari bir joyda. O'zbekistonning zamonaviy agro marketplace platformasi.",
+    "O'simlik kasalliklari, zararkunandalar, o'g'it, sug'orish va hosildorlik bo'yicha AI Agronom yordamchisi.",
 };
 
 export default function RootLayout({
@@ -19,8 +20,8 @@ export default function RootLayout({
   children: React.ReactNode;
 }) {
   return (
-    <html lang="uz">
-      <body className={`${inter.variable} font-sans`}>{children}</body>
+    <html lang="uz" suppressHydrationWarning>
+      <body className={`${outfit.variable} font-sans`}>{children}</body>
     </html>
   );
 }

@@ -8,7 +8,7 @@ import {
 } from "@/lib/agronom/rateLimit";
 import { authenticateRequest } from "@/lib/agronom/auth";
 import { validateChatRequest } from "@/lib/agronom/chat-validate";
-import { processChat, processChatStream } from "@/lib/agronom/chat-handler";
+import { processChat, processChatStream, responseLanguage } from "@/lib/agronom/chat-handler";
 import { isRejectionAnswer } from "@/lib/agronom/rejection-detect";
 import { logApiRequest } from "@/lib/agronom/logger";
 import { SERVICE_NAME } from "@/lib/agronom/api-types";
@@ -129,7 +129,10 @@ export async function handleChatPost(
                   done: true,
                   success: true,
                   answer: fullAnswer,
-                  language: validated.data.language,
+                  language: responseLanguage(
+                    validated.data.language,
+                    validated.data.message
+                  ),
                   service: SERVICE_NAME,
                 })}\n\n`
               )

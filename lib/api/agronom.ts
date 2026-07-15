@@ -13,6 +13,9 @@ export interface ChatRequestOptions {
   message: string;
   language?: string;
   sessionId?: string;
+  images?: string[];
+  cropMemory?: string;
+  weather?: string;
 }
 
 export async function streamAgronomReply(
@@ -29,14 +32,15 @@ export async function streamAgronomReply(
       message: options.message,
       language: options.language ?? "auto",
       sessionId: options.sessionId,
+      images: options.images,
+      cropMemory: options.cropMemory,
+      weather: options.weather,
     }),
   });
 
   if (!response.ok) {
     const data = (await response.json().catch(() => ({}))) as ChatApiResponse;
-    callbacks.onError(
-      !data.success ? data.error : ERROR_MESSAGE
-    );
+    callbacks.onError(!data.success ? data.error : ERROR_MESSAGE);
     return;
   }
 
@@ -60,7 +64,6 @@ export async function streamAgronomReply(
 
     for (const line of lines) {
       if (!line.startsWith("data: ")) continue;
-
       const data = line.slice(6).trim();
       if (data === "[DONE]") continue;
 
@@ -87,32 +90,10 @@ export async function streamAgronomReply(
           fullAnswer = parsed.answer;
         }
       } catch {
-        // skip malformed SSE
+        // skip
       }
     }
   }
 
   callbacks.onDone(fullAnswer);
-}
-
-export async function fetchAgronomReply(
-  options: ChatRequestOptions
-): Promise<string> {
-  const response = await fetch(getChatEndpoint(false), {
-    method: "POST",
-    headers: { "Content-Type": "application/json" },
-    body: JSON.stringify({
-      message: options.message,
-      language: options.language ?? "auto",
-      sessionId: options.sessionId,
-    }),
-  });
-
-  const data = (await response.json()) as ChatApiResponse;
-
-  if (!response.ok || !data.success) {
-    throw new Error(!data.success ? data.error : ERROR_MESSAGE);
-  }
-
-  return data.answer;
 }

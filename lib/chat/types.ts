@@ -6,6 +6,10 @@ export interface ChatMessage {
   content: string;
   createdAt: string;
   isStreaming?: boolean;
+  imageUrls?: string[];
+  meta?: import("@/lib/platform/types").AgentMeta | null;
+  feedback?: "up" | "down" | null;
+  saved?: boolean;
 }
 
 export interface ChatHistoryItem {

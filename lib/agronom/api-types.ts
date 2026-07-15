@@ -1,5 +1,5 @@
 export const SERVICE_NAME = "agro-olam-ai-agronom";
-export const API_VERSION = "1.0.0";
+export const API_VERSION = "1.1.0";
 
 export type SupportedLanguage = "uz" | "ru" | "en" | "auto";
 
@@ -7,6 +7,9 @@ export interface ChatApiRequest {
   message: string;
   language?: SupportedLanguage | string;
   sessionId?: string;
+  images?: string[];
+  cropMemory?: string;
+  weather?: string;
 }
 
 export interface ChatApiSuccessResponse {

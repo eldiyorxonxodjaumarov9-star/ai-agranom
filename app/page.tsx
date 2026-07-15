@@ -1,5 +1,5 @@
-import MarketplaceHome from "@/components/marketplace/MarketplaceHome";
+import PlatformHome from "@/components/platform/PlatformHome";
 
 export default function HomePage() {
-  return <MarketplaceHome />;
+  return <PlatformHome />;
 }

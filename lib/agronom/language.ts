@@ -32,25 +32,30 @@ export function resolveLanguage(
   message: string
 ): SupportedLanguage {
   if (!requested || requested === "auto") {
-    return detectLanguage(message);
+    // Keep auto so model mirrors any of 100+ user languages
+    void message;
+    return "auto";
   }
 
   if (requested === "uz" || requested === "ru" || requested === "en") {
     return requested;
   }
 
-  return detectLanguage(message);
+  return "auto";
 }
 
 export function getLanguageInstruction(language: SupportedLanguage): string {
   switch (language) {
     case "ru":
-      return "Отвечай только на русском языке.";
+      return "Отвечай только на русском языке. Не переводи на другой язык.";
     case "en":
-      return "Respond only in English.";
+      return "Respond only in English. Never translate to another language.";
     case "uz":
+      return "Faqat o'zbek tilida javob ber. Boshqa tilga tarjima qilma.";
+    case "auto":
+      return "Respond in the EXACT same language the user wrote in (any of 100+ languages). Never translate their message into another language.";
     default:
-      return "Faqat o'zbek tilida javob ber.";
+      return "Respond in the EXACT same language the user wrote in. Never translate.";
   }
 }
 
