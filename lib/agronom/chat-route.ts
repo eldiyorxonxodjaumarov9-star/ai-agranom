@@ -18,7 +18,12 @@ function isLikelyNonAgroQuestion(message: string): boolean {
   const m = message.toLowerCase();
 
   // Known non-agro phrasing used in tests / typical people queries.
-  const NON_AGRO_HINTS = [/messi/i, /кто\s+такой/i, /\bwho\s+is\b/i, /\bwho\s+is\b/i];
+  const NON_AGRO_HINTS = [
+    /messi/i, // latin
+    /месси/i, // cyrillic
+    /кто\s+такой/i,
+    /\bwho\s+is\b/i,
+  ];
 
   // Lightweight agronomy keyword hints in RU/KK/UZ/KY.
   const AGRO_HINTS = [
