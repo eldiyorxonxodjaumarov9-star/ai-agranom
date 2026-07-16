@@ -46,7 +46,7 @@ export default function MessageActions({
   };
 
   const share = async () => {
-    const data = { title: "Agro Olam AI Agronom", text: message.content };
+    const data = { title: "Я AI Дехқон", text: message.content };
     if (navigator.share) {
       await navigator.share(data);
     } else {

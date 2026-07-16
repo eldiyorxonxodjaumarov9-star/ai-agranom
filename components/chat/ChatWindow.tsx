@@ -18,7 +18,7 @@ interface ChatWindowProps {
 }
 
 const WELCOME_MESSAGE =
-  "Assalomu alaykum! Men Agro Olam AI Agronomman. Ekin parvarishi, o'g'itlash, kasalliklar, zararkunandalar, sug'orish va boshqa agro masalalar bo'yicha yordam bera olaman. Savolingizni yozing!";
+  "Assalomu alaykum! Men Я AI Дехқонman. Ekin parvarishi, o'g'itlash, kasalliklar, zararkunandalar, sug'orish va boshqa agro masalalar bo'yicha yordam bera olaman. Savolingizni yozing!";
 
 export default function ChatWindow({
   messages,
@@ -52,7 +52,7 @@ export default function ChatWindow({
     <div
       className="flex h-full flex-col overflow-hidden rounded-2xl bg-earth-50 shadow-chat-lg ring-1 ring-agro-200/60 animate-slide-up"
       role="dialog"
-      aria-label="Agro Olam AI Agronom chat"
+      aria-label="Я AI Дехқон chat"
     >
       {/* Header */}
       <header className="flex items-center justify-between bg-gradient-to-r from-agro-700 to-agro-600 px-4 py-3 text-white">
@@ -62,7 +62,7 @@ export default function ChatWindow({
           </div>
           <div>
             <h2 className="text-sm font-semibold leading-tight">
-              Agro Olam AI Agronom
+              Я AI Дехқон
             </h2>
             <p className="text-xs text-agro-100">Onlayn maslahatchi</p>
           </div>

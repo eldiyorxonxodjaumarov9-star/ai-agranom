@@ -78,7 +78,7 @@ export default function MarketplaceHome() {
                 <p className="text-lg font-bold text-agro-800">Agro Olam</p>
                 <p className="mt-2 text-sm leading-relaxed text-gray-500">
                   O&apos;zbekistonning zamonaviy agro marketplace platformasi.
-                  Mahsulotlar, xizmatlar va AI agronom bir joyda.
+                  Mahsulotlar, xizmatlar va Я AI Дехқон bir joyda.
                 </p>
               </div>
               {footerLinks.map((col) => (
@@ -162,6 +162,6 @@ const footerLinks = [
   },
   {
     title: "Yordam",
-    links: ["AI Agronom", "FAQ", "Bog'lanish", "Maxfiylik"],
+    links: ["Я AI Дехқон", "FAQ", "Bog'lanish", "Maxfiylik"],
   },
 ];

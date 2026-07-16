@@ -6,7 +6,7 @@ export default function PlatformFooter() {
           <div>
             <p className="text-sm font-semibold text-ink">Agro Olam</p>
             <p className="mt-2 text-sm leading-relaxed text-ink-muted">
-              AI Agronom platformasi. Marketplace — keyin.
+              Я AI Дехқон platformasi. Marketplace — keyin.
             </p>
           </div>
 
@@ -77,7 +77,7 @@ export default function PlatformFooter() {
         </div>
 
         <div className="mt-12 border-t border-line pt-6 text-center text-xs text-ink-faint">
-          © {new Date().getFullYear()} Agro Olam AI Agronom
+          © {new Date().getFullYear()} Я AI Дехқон
         </div>
       </div>
     </footer>

@@ -164,7 +164,7 @@ export default function AIAgronomChat({
           aria-label={
             isOpen
               ? "Chatni yopish"
-              : "Agro Olam AI Agronom bilan gaplashish"
+              : "Я AI Дехқон bilan gaplashish"
           }
           aria-expanded={isOpen}
         >

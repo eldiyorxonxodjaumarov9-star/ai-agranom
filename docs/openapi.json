@@ -1,7 +1,7 @@
 {
   "openapi": "3.0.3",
   "info": {
-    "title": "Agro Olam AI Agronom API",
+    "title": "Я AI Дехқон API",
     "description": "Professional public API for AI agronomy chat. Use Bearer token authentication.",
     "version": "1.0.0",
     "contact": {
@@ -99,7 +99,7 @@
     },
     "/api/agronom/chat": {
       "post": {
-        "summary": "AI Agronom chat",
+        "summary": "Я AI Дехқон chat",
         "description": "Send an agronomy question and receive AI-powered advice.",
         "tags": ["Chat"],
         "security": [{ "BearerAuth": [] }],

@@ -1,4 +1,4 @@
-/** Agro Olam AI Agronom platform domain types */
+/** Я AI Дехқон platform domain types */
 
 export type CropId =
   | "pomidor"

@@ -45,7 +45,7 @@ export default function QuickActions({ onAction }: QuickActionsProps) {
           Tezkor amallar
         </h2>
         <p className="mt-1 text-sm text-ink-muted">
-          Bir bosishda AI Agronomga yo&apos;naling
+          Bir bosishda Я AI Дехқон ga yo&apos;naling
         </p>
       </div>
       <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-4">

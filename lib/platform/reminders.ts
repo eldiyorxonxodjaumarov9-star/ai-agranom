@@ -99,7 +99,7 @@ function scheduleBrowserNotification(item: ReminderItem): void {
 
 function showNotification(item: ReminderItem): void {
   if (!("Notification" in window) || Notification.permission !== "granted") return;
-  new Notification("Agro Olam AI Agronom", {
+  new Notification("Я AI Дехқон", {
     body: item.title,
     icon: "/favicon.ico",
   });

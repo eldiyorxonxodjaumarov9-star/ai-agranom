@@ -9,9 +9,9 @@ const outfit = Outfit({
 });
 
 export const metadata: Metadata = {
-  title: "Agro Olam AI Agronom — Sun'iy intellekt agronom",
+  title: "Я AI Дехқон — Sun'iy intellekt dehqon",
   description:
-    "O'simlik kasalliklari, zararkunandalar, o'g'it, sug'orish va hosildorlik bo'yicha AI Agronom yordamchisi.",
+    "O'simlik kasalliklari, zararkunandalar, o'g'it, sug'orish va hosildorlik bo'yicha Я AI Дехқон yordamchisi.",
 };
 
 export default function RootLayout({

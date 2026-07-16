@@ -36,7 +36,7 @@ export default function Hero() {
             </h1>
 
             <p className="mx-auto mt-4 max-w-lg text-base leading-relaxed text-agro-100/90 sm:text-lg lg:mx-0">
-              Mahsulotlar, xizmatlar va AI agronom maslahatlari bir joyda
+              Mahsulotlar, xizmatlar va Я AI Дехқон maslahatlari bir joyda
             </p>
 
             <div className="mt-8 flex flex-col items-center gap-3 sm:flex-row sm:justify-center lg:justify-start">
@@ -51,7 +51,7 @@ export default function Hero() {
                 className="inline-flex w-full items-center justify-center gap-2 rounded-2xl border-2 border-white/30 bg-white/10 px-6 py-3.5 text-sm font-bold text-white backdrop-blur-sm transition-all hover:bg-white/20 sm:w-auto"
               >
                 <ChatSparkleIcon className="h-5 w-5" />
-                AI Agronomdan so&apos;rash
+                Я AI Дехқон dan so&apos;rash
               </button>
             </div>
 

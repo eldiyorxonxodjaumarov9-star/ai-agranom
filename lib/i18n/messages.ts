@@ -10,7 +10,7 @@ const kk: Messages = {
     windUnit: "км/сағ",
   },
   hero: {
-    title: "Мен AI Агрономмын",
+    title: "Я AI Дехқон",
     subtitle: "Ауыл шаруашылығы бойынша интеллектуалды көмекшіңіз",
     description:
       "Өсімдік аурулары, тыңайтқыштар, өнімді қорғау, суару, өнімділік және заманауи агротехнологиялар туралы біліңіз.",
@@ -29,7 +29,7 @@ const kk: Messages = {
     },
     ask: {
       title: "Сұрақ қою",
-      subtitle: "AI Агроном кеңесін алыңыз",
+      subtitle: "Я AI Дехқон кеңесін алыңыз",
     },
     voice: {
       title: "Дауысты көмекші",
@@ -74,7 +74,7 @@ const kk: Messages = {
     settings: "Баптаулар",
   },
   marketplace: {
-    note: "Маркетплейс — қосымша бөлім. Негізгі назар — AI Агроном.",
+    note: "Маркетплейс — қосымша бөлім. Негізгі назар — Я AI Дехқон.",
   },
 };
 
@@ -88,7 +88,7 @@ const ru: Messages = {
     windUnit: "км/ч",
   },
   hero: {
-    title: "Я AI Агроном",
+    title: "Я AI Дехқон",
     subtitle: "Ваш интеллектуальный помощник по сельскому хозяйству",
     description:
       "Узнайте о болезнях растений, удобрениях, защите культур, поливе, урожайности и современных агротехнологиях.",
@@ -108,7 +108,7 @@ const ru: Messages = {
     },
     ask: {
       title: "Задать вопрос",
-      subtitle: "Получите консультацию AI Агронома",
+      subtitle: "Получите консультацию Я AI Дехқон",
     },
     voice: {
       title: "Голосовой помощник",
@@ -153,7 +153,7 @@ const ru: Messages = {
     settings: "Настройки",
   },
   marketplace: {
-    note: "Маркетплейс — дополнительный раздел. Основной фокус — AI Агроном.",
+    note: "Маркетплейс — дополнительный раздел. Основной фокус — Я AI Дехқон.",
   },
 };
 
@@ -167,7 +167,7 @@ const uz: Messages = {
     windUnit: "km/soat",
   },
   hero: {
-    title: "Men AI Agronomman",
+    title: "Я AI Дехқон",
     subtitle: "Qishloq xo'jaligi bo'yicha intellektual yordamchingiz",
     description:
       "O'simlik kasalliklari, o'g'itlar, hosil himoyasi, sug'orish, hosildorlik va zamonaviy agrotexnologiyalar haqida bilib oling.",
@@ -187,7 +187,7 @@ const uz: Messages = {
     },
     ask: {
       title: "Savol berish",
-      subtitle: "AI Agronom maslahatini oling",
+      subtitle: "Я AI Дехқон maslahatini oling",
     },
     voice: {
       title: "Ovozli yordamchi",
@@ -232,7 +232,7 @@ const uz: Messages = {
     settings: "Sozlamalar",
   },
   marketplace: {
-    note: "Marketpleys — qo'shimcha bo'lim. Asosiy e'tibor AI Agronomga.",
+    note: "Marketpleys — qo'shimcha bo'lim. Asosiy e'tibor Я AI Дехқон ga.",
   },
 };
 
@@ -246,7 +246,7 @@ const ky: Messages = {
     windUnit: "км/саат",
   },
   hero: {
-    title: "Мен AI Агрономмун",
+    title: "Я AI Дехқон",
     subtitle: "Айыл чарбасы боюнча интеллектуалдык жардамчыңыз",
     description:
       "Өсүмдүк оорулары, чыгымдуулуктар, өнүмдү коргоо, сугаруу, урдуктуулук жана заманбап агротехнологиялар жөнүндө билиңиз.",
@@ -265,7 +265,7 @@ const ky: Messages = {
     },
     ask: {
       title: "Суроо берүү",
-      subtitle: "AI Агроном кеңешин алыңыз",
+      subtitle: "Я AI Дехқон кеңешин алыңыз",
     },
     voice: {
       title: "Үн жардамчысы",
@@ -310,7 +310,7 @@ const ky: Messages = {
     settings: "Жөндөөлөр",
   },
   marketplace: {
-    note: "Маркетплейс — кошумча бөлүм. Негизги көңүл — AI Агроном.",
+    note: "Маркетплейс — кошумча бөлүм. Негизги көңүл — Я AI Дехқон.",
   },
 };
 

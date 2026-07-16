@@ -26,7 +26,7 @@ export default function MarketplaceProductPage({
           {product.description}
         </p>
         <p className="mt-6 text-xs text-ink-faint">
-          AI Agronom faqat katalogdagi mavjud mahsulotlarni tavsiya qiladi.
+          Я AI Дехқон faqat katalogdagi mavjud mahsulotlarni tavsiya qiladi.
         </p>
         <div className="mt-8 flex gap-3">
           <Link href="/" className="btn-primary">

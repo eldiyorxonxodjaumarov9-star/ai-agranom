@@ -12,7 +12,7 @@ const features = [
   { title: "Smart Crop Memory", icon: Check },
   { title: "Plant Calendar + Reminders", icon: Check },
   { title: "Health Score + Growth Timeline", icon: Check },
-  { title: "PDF Report + Voice Agronom", icon: Check },
+  { title: "PDF Report + Voice Дехқон", icon: Check },
 ];
 
 export default function AiFeatures() {
@@ -21,10 +21,10 @@ export default function AiFeatures() {
       <div className="mx-auto max-w-5xl px-4 sm:px-6">
         <div className="mx-auto max-w-xl text-center">
           <h2 className="text-2xl font-semibold tracking-tight text-ink">
-            AI Agronom platformasi
+            Я AI Дехқон platformasi
           </h2>
           <p className="mt-2 text-sm text-ink-muted">
-            Oddiy chatbot emas — professional agronom agent
+            Oddiy chatbot emas — professional dehqon agent
           </p>
         </div>
         <ul className="mt-10 grid gap-3 sm:grid-cols-2 lg:grid-cols-3">
