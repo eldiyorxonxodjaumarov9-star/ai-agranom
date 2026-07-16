@@ -72,6 +72,14 @@ export function getLanguageInstruction(language: SupportedLanguage): string {
 }
 
 export function getRejectionInstruction(language: SupportedLanguage): string {
+  // For auto-mode we must not hardcode Uzbek (default) apology text,
+  // because the model may keep it untranslated.
+  if (language === "auto") {
+    return `Agar savol agro bo'lmasa, faqat qisqa va odobli rad javobini ber: sen faqat agronomiya bo'yicha yordam bera olasan.
+Javobni foydalanuvchi yozgan tilning EXACT o'zida ber. Hech qanday qo'shimcha izoh yoki matn qo'shmay.
+`;
+  }
+
   const msg = getRejectionMessage(language);
   return `Agar savol agro bo'lmagan bo'lsa, faqat shu javobni ber: "${msg}"`;
 }
