@@ -4,6 +4,7 @@ const REJECTION_MESSAGES: Record<string, string> = {
   uz: "Kechirasiz, men faqat agronomiya bo'yicha yordam bera olaman.",
   ru: "Извините, я могу помочь только по вопросам агрономии.",
   kk: "Кешіріңіз, мен тек агрономия мәселелері бойынша көмектесе аламын.",
+  ky: "Кечиресиз, мен агрономия боюнча гана жардам бере алам.",
   en: "Sorry, I can only help with agronomy-related questions.",
 };
 

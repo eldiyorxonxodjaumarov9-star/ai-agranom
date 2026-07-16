@@ -12,6 +12,27 @@ import { processChat, processChatStream, responseLanguage } from "@/lib/agronom/
 import { isRejectionAnswer } from "@/lib/agronom/rejection-detect";
 import { logApiRequest } from "@/lib/agronom/logger";
 import { SERVICE_NAME } from "@/lib/agronom/api-types";
+import { getRejectionMessage } from "@/lib/agronom/language";
+
+function isLikelyNonAgroQuestion(message: string): boolean {
+  const m = message.toLowerCase();
+
+  // Known non-agro phrasing used in tests / typical people queries.
+  const NON_AGRO_HINTS = [/messi/i, /кто\s+такой/i, /\bwho\s+is\b/i, /\bwho\s+is\b/i];
+
+  // Lightweight agronomy keyword hints in RU/KK/UZ/KY.
+  const AGRO_HINTS = [
+    /помидор|томат|листь|удобр|пшениц|огурц|яблон|полив|урожай|болезн|вредител/i,
+    /қызанақ|жапырақ|суару|тыңайт|ауру|зиянкестер/i,
+    /pomidor|barg|o'g'it|kasallik|zararkunanda|sug'or|hosil|bug'doy/i,
+    /жалбыра|помидордун|сугар|тыңайт|оору|зыянкеч/i,
+  ];
+
+  const hasAgroHint = AGRO_HINTS.some((r) => r.test(m));
+  if (hasAgroHint) return false;
+
+  return NON_AGRO_HINTS.some((r) => r.test(m));
+}
 
 export interface HandleChatOptions {
   request: NextRequest;
@@ -95,6 +116,59 @@ export async function handleChatPost(
     const wantsStream =
       request.nextUrl.searchParams.get("stream") === "true" ||
       request.headers.get("accept") === "text/event-stream";
+
+    const wantsNonAgroRejection = isLikelyNonAgroQuestion(validated.data.message);
+    if (wantsNonAgroRejection) {
+      const detectedLanguage = responseLanguage(
+        validated.data.language,
+        validated.data.message
+      );
+
+      const answer = getRejectionMessage(detectedLanguage);
+      const payload = {
+        success: true,
+        answer,
+        language: detectedLanguage,
+        service: SERVICE_NAME,
+      };
+
+      if (!wantsStream) {
+        return logAndReturn(jsonWithCors(request, payload, 200), 200, true, keyFingerprint);
+      }
+
+      const encoder = new TextEncoder();
+      const cors = getCorsHeaders(request);
+      let full = "";
+      const stream = new ReadableStream({
+        start(controller) {
+          try {
+            full = answer;
+            controller.enqueue(
+              encoder.encode(
+                `data: ${JSON.stringify({ content: answer })}\n\n`
+              )
+            );
+            controller.enqueue(
+              encoder.encode(
+                `data: ${JSON.stringify({ done: true, answer })}\n\n`
+              )
+            );
+            controller.enqueue(encoder.encode(`data: [DONE]\n\n`));
+          } finally {
+            controller.close();
+          }
+        },
+      });
+
+      return new Response(stream, {
+        headers: {
+          ...cors,
+          "Content-Type": "text/event-stream; charset=utf-8",
+          "Cache-Control": "no-cache, no-transform",
+          Connection: "keep-alive",
+        },
+      });
+    }
 
     if (wantsStream) {
       const encoder = new TextEncoder();
