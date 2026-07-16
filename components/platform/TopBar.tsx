@@ -114,7 +114,7 @@ export default function TopBar({
           <span className="flex h-7 w-7 items-center justify-center rounded-lg bg-brand text-brand-fg shadow-soft">
             <LeafIcon className="h-3.5 w-3.5" />
           </span>
-          <span className="text-sm font-semibold tracking-tight">{t.nav.brand}</span>
+          <span className="text-sm font-semibold tracking-tight">{t.appName}</span>
         </a>
 
         {/* Weather + Language */}

@@ -1,12 +1,18 @@
+"use client";
+
+import { useT } from "@/lib/context/LocaleContext";
+
 export default function PlatformFooter() {
+  const t = useT();
+
   return (
     <footer id="auth" className="border-t border-line py-14">
       <div className="mx-auto max-w-5xl px-4 sm:px-6">
         <div className="grid gap-10 sm:grid-cols-2 lg:grid-cols-4">
           <div>
-            <p className="text-sm font-semibold text-ink">Agro Olam</p>
+            <p className="text-sm font-semibold text-ink">{t.appName}</p>
             <p className="mt-2 text-sm leading-relaxed text-ink-muted">
-              Я AI Дехқон platformasi. Marketplace — keyin.
+              {t.ui.footerBlurb}
             </p>
           </div>
 
@@ -77,7 +83,7 @@ export default function PlatformFooter() {
         </div>
 
         <div className="mt-12 border-t border-line pt-6 text-center text-xs text-ink-faint">
-          © {new Date().getFullYear()} Я AI Дехқон
+          © {new Date().getFullYear()} {t.ui.copyright}
         </div>
       </div>
     </footer>

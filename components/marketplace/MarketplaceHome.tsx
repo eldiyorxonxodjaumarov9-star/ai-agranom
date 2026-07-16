@@ -1,6 +1,7 @@
-"use client";
+﻿"use client";
 
 import { ChatProvider } from "@/lib/context/ChatContext";
+import { LocaleProvider, useT } from "@/lib/context/LocaleContext";
 import Header from "./Header";
 import Hero from "./Hero";
 import CategoryGrid from "./CategoryGrid";
@@ -9,9 +10,26 @@ import PromoBanners from "./PromoBanners";
 import AIAgronomChat from "./AIAgronomChat";
 import BottomNavigation from "./BottomNavigation";
 
-export default function MarketplaceHome() {
+function MarketplaceBody() {
+  const t = useT();
+
+  const helpLinks = [
+    {
+      title: "Marketplace",
+      links: ["Barcha e'lonlar", "Kategoriyalar", "Sotuvchilar", "Yetkazib berish"],
+    },
+    {
+      title: "Kompaniya",
+      links: ["Biz haqimizda", "Hamkorlik", "Yangiliklar", "Karyera"],
+    },
+    {
+      title: "Yordam",
+      links: [t.marketplace.helpLink, "FAQ", "Bog'lanish", "Maxfiylik"],
+    },
+  ];
+
   return (
-    <ChatProvider>
+    <>
       <Header />
       <main className="pb-[calc(5.5rem+env(safe-area-inset-bottom,0px))] md:pb-0">
         <Hero />
@@ -19,7 +37,6 @@ export default function MarketplaceHome() {
         <QuickLinks />
         <PromoBanners />
 
-        {/* Featured listings preview */}
         <section className="bg-surface py-10 sm:py-14">
           <div className="mx-auto max-w-7xl px-4 sm:px-6 lg:px-8">
             <div className="flex items-end justify-between">
@@ -70,18 +87,17 @@ export default function MarketplaceHome() {
           </div>
         </section>
 
-        {/* Footer */}
         <footer className="border-t border-gray-100 bg-white py-10">
           <div className="mx-auto max-w-7xl px-4 sm:px-6 lg:px-8">
             <div className="grid gap-8 sm:grid-cols-2 lg:grid-cols-4">
               <div>
-                <p className="text-lg font-bold text-agro-800">Agro Olam</p>
+                <p className="text-lg font-bold text-agro-800">{t.appName}</p>
                 <p className="mt-2 text-sm leading-relaxed text-gray-500">
-                  O&apos;zbekistonning zamonaviy agro marketplace platformasi.
-                  Mahsulotlar, xizmatlar va Я AI Дехқон bir joyda.
+                  O&apos;zbekistonning zamonaviy agro marketplace platformasi.{" "}
+                  {t.marketplace.footerBlurb}
                 </p>
               </div>
-              {footerLinks.map((col) => (
+              {helpLinks.map((col) => (
                 <div key={col.title}>
                   <p className="text-sm font-semibold text-gray-900">{col.title}</p>
                   <ul className="mt-3 space-y-2">
@@ -100,7 +116,8 @@ export default function MarketplaceHome() {
               ))}
             </div>
             <div className="mt-10 border-t border-gray-100 pt-6 text-center text-xs text-gray-400">
-              &copy; {new Date().getFullYear()} Agro Olam. Barcha huquqlar himoyalangan.
+              &copy; {new Date().getFullYear()} {t.appName}. Barcha huquqlar
+              himoyalangan.
             </div>
           </div>
         </footer>
@@ -108,7 +125,17 @@ export default function MarketplaceHome() {
 
       <AIAgronomChat />
       <BottomNavigation />
-    </ChatProvider>
+    </>
+  );
+}
+
+export default function MarketplaceHome() {
+  return (
+    <LocaleProvider>
+      <ChatProvider>
+        <MarketplaceBody />
+      </ChatProvider>
+    </LocaleProvider>
   );
 }
 
@@ -148,20 +175,5 @@ const featuredListings = [
     location: "Namangan",
     emoji: "🍎",
     bg: "from-rose-50 to-red-50",
-  },
-];
-
-const footerLinks = [
-  {
-    title: "Marketplace",
-    links: ["Barcha e'lonlar", "Kategoriyalar", "Sotuvchilar", "Yetkazib berish"],
-  },
-  {
-    title: "Kompaniya",
-    links: ["Biz haqimizda", "Hamkorlik", "Yangiliklar", "Karyera"],
-  },
-  {
-    title: "Yordam",
-    links: ["Я AI Дехқон", "FAQ", "Bog'lanish", "Maxfiylik"],
   },
 ];

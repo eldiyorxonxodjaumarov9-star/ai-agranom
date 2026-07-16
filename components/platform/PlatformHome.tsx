@@ -49,7 +49,7 @@ function HomeContent() {
               <span className="mr-2" aria-hidden>
                 🌱
               </span>
-              {t.hero.title}
+              {t.appName}
             </h1>
             <p className="mx-auto mt-4 max-w-xl text-[15px] font-medium leading-relaxed text-ink-muted sm:text-lg">
               {t.hero.subtitle}

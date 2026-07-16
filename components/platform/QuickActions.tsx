@@ -1,6 +1,7 @@
 "use client";
 
 import { motion } from "framer-motion";
+import { useT } from "@/lib/context/LocaleContext";
 
 const actions = [
   {
@@ -38,15 +39,15 @@ interface QuickActionsProps {
 }
 
 export default function QuickActions({ onAction }: QuickActionsProps) {
+  const t = useT();
+
   return (
     <section className="mx-auto max-w-5xl px-4 pb-16 sm:px-6">
       <div className="mb-6">
         <h2 className="text-lg font-semibold tracking-tight text-ink">
           Tezkor amallar
         </h2>
-        <p className="mt-1 text-sm text-ink-muted">
-          Bir bosishda Я AI Дехқон ga yo&apos;naling
-        </p>
+        <p className="mt-1 text-sm text-ink-muted">{t.ui.quickActionsHint}</p>
       </div>
       <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-4">
         {actions.map((a, i) => (

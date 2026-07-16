@@ -1,4 +1,4 @@
-# Я AI Дехқон — Public API
+# AI Dehqon — Public API
 
 Professional public API for AI agronomy chat. Mobile apps, Telegram bots, CRM systems, and other websites can integrate without custom backend code.
 

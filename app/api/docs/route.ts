@@ -1,14 +1,17 @@
 import { NextResponse } from "next/server";
+import { getAppName } from "@/lib/i18n/messages";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
+
+const appName = getAppName("ru");
 
 const SWAGGER_HTML = `<!DOCTYPE html>
 <html lang="uz">
 <head>
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-  <title>Я AI Дехқон API Docs</title>
+  <title>${appName} API Docs</title>
   <link rel="stylesheet" href="https://unpkg.com/swagger-ui-dist@5.11.0/swagger-ui.css" />
   <style>body{margin:0}.swagger-ui .topbar{display:none}</style>
 </head>

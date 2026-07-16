@@ -1,5 +1,6 @@
 import type { Metadata } from "next";
 import { Outfit } from "next/font/google";
+import ruLocale from "../locales/ru.json";
 import "./globals.css";
 
 const outfit = Outfit({
@@ -9,9 +10,8 @@ const outfit = Outfit({
 });
 
 export const metadata: Metadata = {
-  title: "Я AI Дехқон — Sun'iy intellekt dehqon",
-  description:
-    "O'simlik kasalliklari, zararkunandalar, o'g'it, sug'orish va hosildorlik bo'yicha Я AI Дехқон yordamchisi.",
+  title: ruLocale.metaTitle,
+  description: ruLocale.metaDescription,
 };
 
 export default function RootLayout({

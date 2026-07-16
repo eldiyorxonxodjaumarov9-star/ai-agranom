@@ -1,4 +1,4 @@
-/** Я AI Дехқон platform domain types */
+/** Platform domain types */
 
 export type CropId =
   | "pomidor"

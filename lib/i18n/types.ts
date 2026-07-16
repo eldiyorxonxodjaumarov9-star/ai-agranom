@@ -14,6 +14,10 @@ export const LOCALES: {
 export const DEFAULT_LOCALE: Locale = "ru";
 
 export interface Messages {
+  /** Localized product name — always from locales/*.json */
+  appName: string;
+  metaTitle: string;
+  metaDescription: string;
   nav: {
     region: string;
     weather: string;
@@ -59,6 +63,8 @@ export interface Messages {
     file: string;
     photo: string;
     voice: string;
+    welcome: string;
+    ariaLabel: string;
     examples: string[];
   };
   bottomNav: {
@@ -71,5 +77,21 @@ export interface Messages {
   };
   marketplace: {
     note: string;
+    heroBlurb: string;
+    askCta: string;
+    talkAria: string;
+    footerBlurb: string;
+    helpLink: string;
+    catalogNote: string;
+  };
+  ui: {
+    footerBlurb: string;
+    copyright: string;
+    featuresTitle: string;
+    featuresSubtitle: string;
+    voiceFeature: string;
+    quickActionsHint: string;
+    pdfReportTitle: string;
+    pdfAnalysis: string;
   };
 }

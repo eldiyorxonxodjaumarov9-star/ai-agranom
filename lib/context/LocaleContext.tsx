@@ -24,6 +24,8 @@ interface LocaleContextValue {
   locale: Locale;
   setLocale: (locale: Locale) => void;
   t: Messages;
+  /** Alias for translations — use translations.appName */
+  translations: Messages;
   locales: typeof LOCALES;
   ready: boolean;
 }
@@ -32,6 +34,20 @@ const LocaleContext = createContext<LocaleContextValue | null>(null);
 
 function isLocale(value: string | null | undefined): value is Locale {
   return value === "kk" || value === "ru" || value === "uz" || value === "ky";
+}
+
+function DocumentMeta({ t }: { t: Messages }) {
+  useEffect(() => {
+    document.title = t.metaTitle;
+    let meta = document.querySelector('meta[name="description"]');
+    if (!meta) {
+      meta = document.createElement("meta");
+      meta.setAttribute("name", "description");
+      document.head.appendChild(meta);
+    }
+    meta.setAttribute("content", t.metaDescription);
+  }, [t.metaTitle, t.metaDescription]);
+  return null;
 }
 
 export function LocaleProvider({ children }: { children: ReactNode }) {
@@ -58,19 +74,25 @@ export function LocaleProvider({ children }: { children: ReactNode }) {
     document.documentElement.lang = next;
   }, []);
 
+  const messages = useMemo(() => getMessages(locale), [locale]);
+
   const value = useMemo(
     () => ({
       locale,
       setLocale,
-      t: getMessages(locale),
+      t: messages,
+      translations: messages,
       locales: LOCALES,
       ready,
     }),
-    [locale, setLocale, ready]
+    [locale, setLocale, messages, ready]
   );
 
   return (
-    <LocaleContext.Provider value={value}>{children}</LocaleContext.Provider>
+    <LocaleContext.Provider value={value}>
+      <DocumentMeta t={messages} />
+      {children}
+    </LocaleContext.Provider>
   );
 }
 
@@ -82,4 +104,17 @@ export function useLocale() {
 
 export function useT() {
   return useLocale().t;
+}
+
+/** Translate by key — e.g. t("appName") */
+export function useTranslate() {
+  const messages = useT();
+  return useCallback(
+    (key: keyof Messages) => {
+      const value = messages[key];
+      if (typeof value === "string") return value;
+      return messages.appName;
+    },
+    [messages]
+  );
 }

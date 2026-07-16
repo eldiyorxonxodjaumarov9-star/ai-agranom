@@ -1,7 +1,19 @@
 import type { CalendarTask, ReminderItem } from "./types";
+import { getAppName } from "@/lib/i18n/messages";
+import type { Locale } from "@/lib/i18n/types";
 
 const CAL_KEY = "agro-olam-calendar-v1";
 const REM_KEY = "agro-olam-reminders-v1";
+const LOCALE_KEY = "agro-olam-locale";
+
+function resolveLocale(): Locale {
+  if (typeof window === "undefined") return "ru";
+  const stored = localStorage.getItem(LOCALE_KEY);
+  if (stored === "uz" || stored === "kk" || stored === "ky" || stored === "ru") {
+    return stored;
+  }
+  return "ru";
+}
 
 function uid(): string {
   return `${Date.now()}-${Math.random().toString(36).slice(2, 8)}`;
@@ -99,7 +111,7 @@ function scheduleBrowserNotification(item: ReminderItem): void {
 
 function showNotification(item: ReminderItem): void {
   if (!("Notification" in window) || Notification.permission !== "granted") return;
-  new Notification("Я AI Дехқон", {
+  new Notification(getAppName(resolveLocale()), {
     body: item.title,
     icon: "/favicon.ico",
   });

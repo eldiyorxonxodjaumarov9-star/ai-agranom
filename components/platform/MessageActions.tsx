@@ -7,6 +7,7 @@ import { getProductById, matchProductsFromText } from "@/lib/platform/marketplac
 import { exportAgronomPdf } from "@/lib/platform/pdf-report";
 import { speakText, stopSpeaking } from "@/lib/platform/voice";
 import { createReminder, ensureNotificationPermission, addCalendarTasks } from "@/lib/platform/reminders";
+import { useT } from "@/lib/context/LocaleContext";
 
 interface MessageActionsProps {
   message: ChatMessage;
@@ -25,6 +26,7 @@ export default function MessageActions({
   onSave,
   onAddCalendar,
 }: MessageActionsProps) {
+  const t = useT();
   const [busy, setBusy] = useState("");
   const [toast, setToast] = useState("");
 
@@ -46,7 +48,7 @@ export default function MessageActions({
   };
 
   const share = async () => {
-    const data = { title: "Я AI Дехқон", text: message.content };
+    const data = { title: t.appName, text: message.content };
     if (navigator.share) {
       await navigator.share(data);
     } else {
@@ -64,6 +66,8 @@ export default function MessageActions({
         cropName: message.meta?.health?.crop,
         products,
         imageDataUrls: message.imageUrls,
+        reportTitle: t.ui.pdfReportTitle,
+        analysisHeading: t.ui.pdfAnalysis,
       });
       flash("PDF yuklandi");
     } catch {

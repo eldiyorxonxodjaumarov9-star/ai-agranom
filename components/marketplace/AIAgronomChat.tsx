@@ -13,6 +13,7 @@ import {
 } from "@/lib/chat/storage";
 import { streamAgronomReply } from "@/lib/api/agronom";
 import ChatWindow from "@/components/chat/ChatWindow";
+import { useT } from "@/lib/context/LocaleContext";
 
 const ERROR_MESSAGE =
   "Kechirasiz, hozir javob berishda muammo bo'ldi. Iltimos, qayta urinib ko'ring.";
@@ -25,6 +26,7 @@ export default function AIAgronomChat({
   showFloatingButton = true,
 }: AIAgronomChatProps) {
   const { isOpen, toggleChat, closeChat } = useChat();
+  const t = useT();
   const [messages, setMessages] = useState<ChatMessage[]>([]);
   const [inputValue, setInputValue] = useState("");
   const [isLoading, setIsLoading] = useState(false);
@@ -164,7 +166,7 @@ export default function AIAgronomChat({
           aria-label={
             isOpen
               ? "Chatni yopish"
-              : "Я AI Дехқон bilan gaplashish"
+              : t.marketplace.talkAria
           }
           aria-expanded={isOpen}
         >

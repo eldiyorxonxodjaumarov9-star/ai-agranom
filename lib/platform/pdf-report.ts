@@ -7,6 +7,8 @@ export interface PdfReportInput {
   cropName?: string;
   products?: MarketplaceProduct[];
   imageDataUrls?: string[];
+  reportTitle?: string;
+  analysisHeading?: string;
 }
 
 export async function exportAgronomPdf(input: PdfReportInput): Promise<void> {
@@ -29,7 +31,7 @@ export async function exportAgronomPdf(input: PdfReportInput): Promise<void> {
     }
   };
 
-  add("Я AI Дехқон — Professional Report", 16, true);
+  add(input.reportTitle || "AI Report", 16, true);
   y += 6;
   add(`Sana: ${new Date().toLocaleString("uz-UZ")}`, 10);
   if (input.cropName) add(`Ekin: ${input.cropName}`, 11, true);
@@ -37,7 +39,7 @@ export async function exportAgronomPdf(input: PdfReportInput): Promise<void> {
   add("1. Muammo / Savol", 13, true);
   add(input.problem || "—");
   y += 8;
-  add("2. Я AI Дехқон tahlili va tavsiya", 13, true);
+  add(input.analysisHeading || "2. Tahlil va tavsiya", 13, true);
   add(input.answer.replace(/---AGRO_META---[\s\S]*?---END---/gi, "").trim() || "—");
   y += 8;
 

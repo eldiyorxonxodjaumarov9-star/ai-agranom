@@ -5,6 +5,7 @@ import type { ChatMessage } from "@/lib/chat/types";
 import MessageBubble from "./MessageBubble";
 import TypingIndicator from "./TypingIndicator";
 import ChatInput from "./ChatInput";
+import { useT } from "@/lib/context/LocaleContext";
 
 interface ChatWindowProps {
   messages: ChatMessage[];
@@ -17,9 +18,6 @@ interface ChatWindowProps {
   onClear: () => void;
 }
 
-const WELCOME_MESSAGE =
-  "Assalomu alaykum! Men Я AI Дехқонman. Ekin parvarishi, o'g'itlash, kasalliklar, zararkunandalar, sug'orish va boshqa agro masalalar bo'yicha yordam bera olaman. Savolingizni yozing!";
-
 export default function ChatWindow({
   messages,
   isLoading,
@@ -30,6 +28,7 @@ export default function ChatWindow({
   onClose,
   onClear,
 }: ChatWindowProps) {
+  const t = useT();
   const messagesEndRef = useRef<HTMLDivElement>(null);
 
   useEffect(() => {
@@ -42,7 +41,7 @@ export default function ChatWindow({
           {
             id: "welcome",
             role: "assistant" as const,
-            content: WELCOME_MESSAGE,
+            content: t.chat.welcome,
             createdAt: new Date().toISOString(),
           },
         ]
@@ -52,7 +51,7 @@ export default function ChatWindow({
     <div
       className="flex h-full flex-col overflow-hidden rounded-2xl bg-earth-50 shadow-chat-lg ring-1 ring-agro-200/60 animate-slide-up"
       role="dialog"
-      aria-label="Я AI Дехқон chat"
+      aria-label={t.chat.ariaLabel}
     >
       {/* Header */}
       <header className="flex items-center justify-between bg-gradient-to-r from-agro-700 to-agro-600 px-4 py-3 text-white">
@@ -62,7 +61,7 @@ export default function ChatWindow({
           </div>
           <div>
             <h2 className="text-sm font-semibold leading-tight">
-              Я AI Дехқон
+              {t.appName}
             </h2>
             <p className="text-xs text-agro-100">Onlayn maslahatchi</p>
           </div>
