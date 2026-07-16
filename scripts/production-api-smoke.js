@@ -72,8 +72,13 @@ async function main() {
   }
 
   // Valid bearer (requires production AGRO_API_KEY in CI secrets)
+  const isCI = process.env.CI === "true";
   if (!KEY || KEY === "super_secret_api_key_here") {
-    console.warn("SKIP: valid Bearer test (AGRO_API_KEY not configured)");
+    if (isCI) {
+      fail("valid Bearer", "AGRO_API_KEY secret not configured in CI");
+    } else {
+      console.warn("SKIP: valid Bearer test (AGRO_API_KEY not configured)");
+    }
   } else {
     const agro = await postChat(
       { Authorization: `Bearer ${KEY}` },
