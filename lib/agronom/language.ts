@@ -22,11 +22,22 @@ export function detectLanguage(text: string): SupportedLanguage | "kk" | "ky" {
     return "kk";
   }
 
+  // Word-level hints:
+  // - Kazakh commonly uses "деген/деген" in questions like "Месси деген кім?"
+  // - Kyrgyz often uses "ким/кем" but without Russian "кто/такой"
+  if (/\bдеген\b/i.test(text) || /\bдеген\b/i.test(lower)) {
+    return "kk";
+  }
+
   if (/[өүң]/i.test(text) && /[а-яё]/i.test(text)) {
     return "ky";
   }
 
   if (/[а-яё]/i.test(text) && !/[oʻgʻshch]/i.test(lower)) {
+    // If it looks like "кого/кто" it's Russian; otherwise "ким/кем" leans Kyrgyz.
+    if (/\b(ким|кем)\b/i.test(text) && !/\b(кто|такой)\b/i.test(text)) {
+      return "ky";
+    }
     return "ru";
   }
 
