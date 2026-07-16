@@ -1,4 +1,4 @@
-﻿"use client";
+"use client";
 
 import {
   useCallback,
@@ -473,7 +473,7 @@ export default function AgronomChat({ weather, regionId = "almaty", chatRef }: A
                     onClick={() => selectConversation(c.id)}
                     className="flex w-full items-center gap-2 px-3 py-2.5 text-left text-sm"
                   >
-                    {c.pinned && <span className="text-brand">рџ“Њ</span>}
+                    {c.pinned && <span className="text-brand">📌</span>}
                     <span className="line-clamp-1 flex-1 font-medium">{c.title}</span>
                   </button>
                 )}
@@ -487,42 +487,42 @@ export default function AgronomChat({ weather, regionId = "almaty", chatRef }: A
                         setMenuId((id) => (id === c.id ? null : c.id));
                       }}
                     >
-                      в‹Ї
+                      ⋮
                     </button>
                     {menuId === c.id && (
                       <div
-                        className="absolute right-0 top-full z-50 mt-1 w-40 overflow-hidden rounded-xl border border-line bg-canvas-elevated py-1 shadow-lift"
+                        className="absolute right-0 top-full z-50 mt-1 min-w-[190px] w-max max-w-[min(100vw-2rem,16rem)] overflow-hidden rounded-xl border border-line bg-canvas-elevated py-1 shadow-lift"
                         onClick={(e) => e.stopPropagation()}
                       >
                         <button
                           type="button"
-                          className="flex w-full items-center gap-2 px-3 py-2 text-left text-sm text-ink hover:bg-canvas-muted"
+                          className="flex w-full items-center gap-2 whitespace-nowrap px-3 py-2 text-left text-sm text-ink hover:bg-canvas-muted"
                           onClick={() => {
                             setEditTitle(c.title);
                             setEditingId(c.id);
                             setMenuId(null);
                           }}
                         >
-                          <span aria-hidden>вњЏпёЏ</span> {t.chat.rename}
+                          <span aria-hidden>✏️</span> {t.chat.rename}
                         </button>
                         <button
                           type="button"
-                          className="flex w-full items-center gap-2 px-3 py-2 text-left text-sm text-ink hover:bg-canvas-muted"
+                          className="flex w-full items-center gap-2 whitespace-nowrap px-3 py-2 text-left text-sm text-ink hover:bg-canvas-muted"
                           onClick={() => togglePin(c.id)}
                         >
-                          <span aria-hidden>рџ“Њ</span>{" "}
+                          <span aria-hidden>📌</span>{" "}
                           {c.pinned ? t.chat.unpin : t.chat.pin}
                         </button>
                         <div className="my-1 border-t border-line" />
                         <button
                           type="button"
-                          className="flex w-full items-center gap-2 px-3 py-2 text-left text-sm text-[#DC2626] hover:bg-[#FEE2E2] hover:text-[#DC2626]"
+                          className="flex w-full items-center gap-2 whitespace-nowrap px-3 py-2 text-left text-sm text-red-600 hover:bg-red-50 hover:text-red-700 dark:text-red-400 dark:hover:bg-red-950/40 dark:hover:text-red-300"
                           onClick={() => {
                             setDeleteConfirmId(c.id);
                             setMenuId(null);
                           }}
                         >
-                          <span aria-hidden>рџ—‘пёЏ</span> {t.chat.delete}
+                          <span aria-hidden>🗑️</span> {t.chat.delete}
                         </button>
                       </div>
                     )}
@@ -550,7 +550,7 @@ export default function AgronomChat({ weather, regionId = "almaty", chatRef }: A
               className="btn-ghost !px-2"
               onClick={() => setSidebarOpen(true)}
             >
-              в°
+              ☰
             </button>
             <span className="text-sm text-ink-muted">{t.chat.chats}</span>
           </div>
@@ -666,7 +666,7 @@ export default function AgronomChat({ weather, regionId = "almaty", chatRef }: A
                     title={t.chat.file}
                     onClick={() => fileRef.current?.click()}
                   >
-                    рџ“Ћ
+                    📎
                   </button>
                   <button
                     type="button"
@@ -674,7 +674,7 @@ export default function AgronomChat({ weather, regionId = "almaty", chatRef }: A
                     title={t.chat.photo}
                     onClick={() => fileRef.current?.click()}
                   >
-                    рџ“·
+                    📷
                   </button>
                   <button
                     type="button"
@@ -682,7 +682,7 @@ export default function AgronomChat({ weather, regionId = "almaty", chatRef }: A
                     title={t.chat.voice}
                     onClick={handleVoice}
                   >
-                    рџЋ¤
+                    🎤
                   </button>
                   <input
                     ref={fileRef}
@@ -699,7 +699,7 @@ export default function AgronomChat({ weather, regionId = "almaty", chatRef }: A
                   className="btn-primary !rounded-xl !px-3.5 !py-2 disabled:opacity-40"
                   aria-label={t.chat.send}
                 >
-                  вћњ
+                  ➤
                 </button>
               </div>
             </form>
@@ -744,7 +744,7 @@ export default function AgronomChat({ weather, regionId = "almaty", chatRef }: A
                 className="rounded-xl bg-[#DC2626] px-4 py-2 text-sm font-medium text-white transition hover:bg-[#B91C1C]"
                 onClick={confirmDeleteConversation}
               >
-                рџ—‘пёЏ {t.chat.deleteConfirm}
+                🗑️ {t.chat.deleteConfirm}
               </button>
             </div>
           </div>
