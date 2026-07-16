@@ -1,5 +1,7 @@
 import type { SupportedLanguage } from "./api-types";
 
+export type DetectedLanguage = "uz" | "ru" | "en" | "kk" | "ky";
+
 const REJECTION_MESSAGES: Record<string, string> = {
   uz: "Kechirasiz, men faqat agronomiya bo'yicha yordam bera olaman.",
   ru: "Извините, я могу помочь только по вопросам агрономии.",
@@ -8,63 +10,213 @@ const REJECTION_MESSAGES: Record<string, string> = {
   en: "Sorry, I can only help with agronomy-related questions.",
 };
 
-export function getRejectionMessage(language: string): string {
-  return REJECTION_MESSAGES[language] ?? REJECTION_MESSAGES.uz;
+/** Kazakh-only Cyrillic letters (not shared with Kyrgyz as primary signal) */
+const KK_UNIQUE_CHARS = "әғқұіһ";
+
+/** Kyrgyz-priority shared Turkic letters */
+const KY_PRIORITY_CHARS = "ңөү";
+
+const KY_WORDS = [
+  "эмне",
+  "кантип",
+  "керек",
+  "үчүн",
+  "менен",
+  "өсүмдүк",
+  "өсүмдүккө",
+  "жалбырак",
+  "жалбырагы",
+  "жалбырактары",
+  "помидор",
+  "помидордун",
+  "сугаруу",
+  "жер семирткич",
+  "семирткич",
+  "зыянкеч",
+  "оору",
+  "түшүм",
+  "дыйкан",
+  "айыл чарба",
+  "жардам",
+  "ким",
+  "кайсы",
+  "жакшы",
+  "саргайып",
+  "куурап",
+  "өстүрүү",
+  "бадыраң",
+  "бадыраңды",
+  "кандай",
+  "маселе",
+];
+
+const KK_WORDS = [
+  "неге",
+  "қалай",
+  "керек",
+  "өсімдік",
+  "жапырақ",
+  "жапырағы",
+  "жапырақтары",
+  "тыңайтқыш",
+  "суару",
+  "қызанақ",
+  "қызанақтың",
+  "қияр",
+  "қиярды",
+  "кім",
+  "деген",
+  "сарғайып",
+  "сарғайып жатыр",
+];
+
+const RU_WORDS = [
+  "почему",
+  "желтеют",
+  "листья",
+  "листь",
+  "томата",
+  "томат",
+  "какой",
+  "как",
+  "кто",
+  "такой",
+  "удобр",
+  "вредител",
+  "полив",
+  "пшеницы",
+  "огурцов",
+  "яблони",
+];
+
+const EXPLICIT_LANGUAGES = new Set<SupportedLanguage>([
+  "uz",
+  "ru",
+  "en",
+  "kk",
+  "ky",
+]);
+
+function countChars(text: string, chars: string): number {
+  const lower = text.toLowerCase();
+  let n = 0;
+  for (const c of lower) {
+    if (chars.includes(c)) n++;
+  }
+  return n;
 }
 
-export function detectLanguage(text: string): SupportedLanguage | "kk" | "ky" {
+function countWordHits(text: string, words: string[]): number {
   const lower = text.toLowerCase();
+  let hits = 0;
+  for (const w of words) {
+    if (lower.includes(w)) hits++;
+  }
+  return hits;
+}
 
-  // Distinguish Kazakh vs Kyrgyz:
-  // - Kazakh has several unique letters (ә ғ қ ұ і һ)
-  // - Kyrgyz typically uses ө ү ң (and may not include Kazakh-unique letters)
-  if (/[әғқұіһ]/i.test(text)) {
-    return "kk";
+function scoreText(text: string): Record<DetectedLanguage, number> {
+  const lower = text.toLowerCase();
+  const scores: Record<DetectedLanguage, number> = {
+    uz: 0,
+    ru: 0,
+    kk: 0,
+    ky: 0,
+    en: 0,
+  };
+
+  // 1) Unique letter scoring
+  scores.kk += countChars(text, KK_UNIQUE_CHARS) * 5;
+  const kyCharScore = countChars(text, KY_PRIORITY_CHARS);
+  scores.ky += kyCharScore * 4;
+  scores.kk += kyCharScore * 1;
+
+  // 2) Word scoring
+  scores.ky += countWordHits(text, KY_WORDS) * 4;
+  scores.kk += countWordHits(text, KK_WORDS) * 4;
+  scores.ru += countWordHits(text, RU_WORDS) * 3;
+
+  // 3) Suffix / structure patterns
+  if (/дун|дын|го|ко|уун|үүн|ган|ген|ды\b|тип\b|жатат/i.test(lower)) {
+    scores.ky += 2;
+  }
+  if (/тың|дың|ға\b|ге\b|таң|ді\b|жатыр/i.test(lower)) {
+    scores.kk += 2;
   }
 
-  // Word-level hints:
-  // - Kazakh commonly uses "деген/деген" in questions like "Месси деген кім?"
-  // - Kyrgyz often uses "ким/кем" but without Russian "кто/такой"
-  if (/деген/i.test(text) || /деген/i.test(lower)) {
-    return "kk";
-  }
-
-  if (/[өүң]/i.test(text) && /[а-яё]/i.test(text)) {
-    return "ky";
-  }
-
-  if (/[а-яё]/i.test(text) && !/[oʻgʻshch]/i.test(lower)) {
-    // If it looks like "кого/кто" it's Russian; otherwise "ким/кем" leans Kyrgyz.
-    if (/(ким|кем)/i.test(text) && !/(кто|такой)/i.test(text)) {
-      return "ky";
+  // 4) Uzbek (Latin, no Cyrillic)
+  const hasCyrillic = /[а-яёәғқңөұүһі]/i.test(text);
+  const hasLatin = /[a-zA-Z]/.test(text);
+  if (hasLatin && !hasCyrillic) {
+    scores.uz += 4;
+    if (/[ʻʼ'o'g']|nega|pomidor|barg|o'g'it|sug'or|kasallik/i.test(lower)) {
+      scores.uz += 3;
     }
-    return "ru";
   }
 
+  // 5) Russian baseline for Cyrillic without strong kk/ky signals
+  if (hasCyrillic) {
+    scores.ru += 1;
+    if (/[ыэъё]/i.test(text)) scores.ru += 1;
+  }
+
+  // 6) English
   if (
     /\b(the|what|how|why|is|are|can|help)\b/i.test(text) &&
-    !/[а-яёәғқңөұүһі]/i.test(text)
+    !hasCyrillic
   ) {
-    return "en";
+    scores.en += 5;
   }
 
-  return "uz";
+  return scores;
+}
+
+export function detectLanguage(text: string): DetectedLanguage {
+  const scores = scoreText(text);
+  const hasCyrillic = /[а-яёәғқңөұүһі]/i.test(text);
+
+  if (scores.en >= 5 && !hasCyrillic) return "en";
+
+  const langs: DetectedLanguage[] = ["ky", "kk", "ru", "uz"];
+  langs.sort((a, b) => scores[b] - scores[a]);
+
+  const top = langs[0];
+  const topScore = scores[top];
+  const secondScore = scores[langs[1]];
+
+  if (topScore === 0) {
+    if (hasCyrillic) return "ru";
+    if (/[a-zA-Z]/.test(text)) return "uz";
+    return "uz";
+  }
+
+  // kk vs ky tie-break: Kazakh unique letters always win
+  if (top === "ky" || top === "kk" || (topScore === secondScore && scores.kk > 0 && scores.ky > 0)) {
+    if (countChars(text, KK_UNIQUE_CHARS) > 0) return "kk";
+    if (scores.ky > scores.kk) return "ky";
+    if (scores.kk > scores.ky) return "kk";
+    return top;
+  }
+
+  // If Russian tied with low kk/ky, prefer ru only when no Turkic signals
+  if (top === "ru" && scores.ky < 3 && scores.kk < 3) return "ru";
+
+  return top;
+}
+
+export function getRejectionMessage(language: string): string {
+  return REJECTION_MESSAGES[language] ?? REJECTION_MESSAGES.uz;
 }
 
 export function resolveLanguage(
   requested: string | undefined,
   message: string
 ): SupportedLanguage {
-  if (!requested || requested === "auto") {
-    // Keep auto so model mirrors any of 100+ user languages
-    void message;
-    return "auto";
+  void message;
+  const r = (requested || "auto").toLowerCase().trim();
+  if (EXPLICIT_LANGUAGES.has(r as SupportedLanguage)) {
+    return r as SupportedLanguage;
   }
-
-  if (requested === "uz" || requested === "ru" || requested === "en") {
-    return requested;
-  }
-
   return "auto";
 }
 
@@ -76,16 +228,18 @@ export function getLanguageInstruction(language: SupportedLanguage): string {
       return "Respond only in English. Never translate to another language.";
     case "uz":
       return "Faqat o'zbek tilida javob ber. Boshqa tilga tarjima qilma.";
+    case "kk":
+      return "Тек қазақ тілінде жауап бер. Басқа тілге аударма.";
+    case "ky":
+      return "Кыргызча гана жооп бер. Башка тилге которбо.";
     case "auto":
-      return "Respond in the EXACT same language the user wrote in (any of 100+ languages). Never translate their message into another language.";
+      return "Respond in the EXACT same language the user wrote in (uz, ru, kk, ky, en, or any other). Never translate their message into another language.";
     default:
       return "Respond in the EXACT same language the user wrote in. Never translate.";
   }
 }
 
 export function getRejectionInstruction(language: SupportedLanguage): string {
-  // For auto-mode we must not hardcode Uzbek (default) apology text,
-  // because the model may keep it untranslated.
   if (language === "auto") {
     return `Если вопрос НЕ агрономический — выведи только короткий вежливый отказ (одно предложение).
 Ответь на ТОМ ЖЕ языке, что использовал пользователь, и сообщи смысл: ты можешь помочь только по вопросам агрономии.
@@ -94,4 +248,13 @@ export function getRejectionInstruction(language: SupportedLanguage): string {
 
   const msg = getRejectionMessage(language);
   return `Agar savol agro bo'lmagan bo'lsa, faqat shu javobni ber: "${msg}"`;
+}
+
+/** Resolve response language: explicit code wins, else detect from message */
+export function resolveResponseLanguage(
+  language: SupportedLanguage,
+  message: string
+): string {
+  if (language !== "auto") return language;
+  return detectLanguage(message);
 }

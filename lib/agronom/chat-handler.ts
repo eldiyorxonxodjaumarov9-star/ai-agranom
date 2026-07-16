@@ -13,7 +13,7 @@ import type {
   ChatApiErrorResponse,
   ChatApiSuccessResponse,
 } from "@/lib/agronom/api-types";
-import { detectLanguage } from "@/lib/agronom/language";
+import { resolveResponseLanguage } from "@/lib/agronom/language";
 
 const AI_ERROR: ChatApiErrorResponse = {
   success: false,
@@ -29,13 +29,12 @@ export interface ProcessChatInput {
   weather?: string;
 }
 
-/** API response til maydoni: auto bo‘lsa detect qilinadi (uz/ru/en) */
+/** API response til maydoni: auto bo‘lsa detect qilinadi (uz/ru/kk/ky/en) */
 export function responseLanguage(
   language: SupportedLanguage,
   message: string
 ): string {
-  if (language === "auto") return detectLanguage(message);
-  return language;
+  return resolveResponseLanguage(language, message);
 }
 
 function toRequest(input: ProcessChatInput): AgronomRequest {

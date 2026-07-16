@@ -1,7 +1,7 @@
 import { getRejectionMessage } from "./language";
 import type { SupportedLanguage } from "./api-types";
 
-const LANGUAGES: SupportedLanguage[] = ["uz", "ru", "en"];
+const LANGUAGES: SupportedLanguage[] = ["uz", "ru", "en", "kk", "ky"];
 
 export function isRejectionAnswer(answer: string): boolean {
   const normalized = answer.trim().toLowerCase();

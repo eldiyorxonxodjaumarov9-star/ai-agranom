@@ -30,7 +30,7 @@ function isLikelyNonAgroQuestion(message: string): boolean {
     /помидор|томат|листь|удобр|пшениц|огурц|яблон|полив|урожай|болезн|вредител/i,
     /қызанақ|жапырақ|суару|тыңайт|ауру|зиянкестер/i,
     /pomidor|barg|o'g'it|kasallik|zararkunanda|sug'or|hosil|bug'doy/i,
-    /жалбыра|помидордун|сугар|тыңайт|оору|зыянкеч/i,
+    /жалбыра|помидордун|сугар|бадыраң|өсүмдүк|семирткич|кантип/i,
   ];
 
   const hasAgroHint = AGRO_HINTS.some((r) => r.test(m));

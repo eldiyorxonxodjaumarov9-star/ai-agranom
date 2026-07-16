@@ -1,7 +1,7 @@
 export const SERVICE_NAME = "agro-olam-ai-agronom";
 export const API_VERSION = "1.1.0";
 
-export type SupportedLanguage = "uz" | "ru" | "en" | "auto";
+export type SupportedLanguage = "uz" | "ru" | "en" | "kk" | "ky" | "auto";
 
 export interface ChatApiRequest {
   message: string;

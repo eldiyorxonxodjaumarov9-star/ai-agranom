@@ -8,7 +8,8 @@
     "build": "next build",
     "start": "next start",
     "start:api": "tsx server/index.ts",
-    "lint": "next lint"
+    "test:lang": "tsx scripts/test-language-detection.ts",
+    "test:smoke": "node scripts/production-api-smoke.js"
   },
   "dependencies": {
     "dotenv": "^16.4.0",
