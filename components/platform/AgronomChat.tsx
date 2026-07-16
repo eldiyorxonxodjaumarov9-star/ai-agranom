@@ -35,11 +35,10 @@ import {
   upsertCropChat,
 } from "@/lib/platform/crop-memory";
 import { createSpeechRecognition } from "@/lib/platform/voice";
-import { weatherPromptBlock } from "@/lib/platform/weather";
+import { weatherPromptBlock, localizeWeather } from "@/lib/platform/weather";
 import type { WeatherSnapshot } from "@/lib/platform/types";
-
-const ERROR_MESSAGE =
-  "Kechirasiz, hozir javob berishda muammo bo'ldi. Iltimos, qayta urinib ko'ring.";
+import { useLocale } from "@/lib/context/LocaleContext";
+import { isNewChatTitle } from "@/lib/i18n/messages";
 
 const MAX_IMAGES = 10;
 
@@ -52,10 +51,12 @@ export interface AgronomChatHandle {
 
 interface AgronomChatProps {
   weather?: WeatherSnapshot | null;
+  regionId?: string;
   chatRef?: React.MutableRefObject<AgronomChatHandle | null>;
 }
 
-export default function AgronomChat({ weather, chatRef }: AgronomChatProps) {
+export default function AgronomChat({ weather, regionId = "almaty", chatRef }: AgronomChatProps) {
+  const { locale, t } = useLocale();
   const [conversations, setConversations] = useState<Conversation[]>([]);
   const [activeId, setActiveId] = useState<string | null>(null);
   const [messages, setMessages] = useState<ChatMessage[]>([]);
@@ -99,9 +100,9 @@ export default function AgronomChat({ weather, chatRef }: AgronomChatProps) {
                 messages: messages.filter((m) => !m.isStreaming),
                 updatedAt: new Date().toISOString(),
                 title:
-                  (c.title === "Yangi suhbat" || !c.title) &&
+                  (isNewChatTitle(c.title) || !c.title) &&
                   messages[0]?.role === "user"
-                    ? titleFromMessage(messages[0].content)
+                    ? titleFromMessage(messages[0].content, t.chat.newChat)
                     : c.title,
               }
             : c
@@ -134,7 +135,7 @@ export default function AgronomChat({ weather, chatRef }: AgronomChatProps) {
     const id = generateId("convo");
     const convo: Conversation = {
       id,
-      title: "Yangi suhbat",
+      title: t.chat.newChat,
       messages: [],
       updatedAt: new Date().toISOString(),
       pinned: false,
@@ -153,7 +154,7 @@ export default function AgronomChat({ weather, chatRef }: AgronomChatProps) {
     const id = generateId("convo");
     const convo: Conversation = {
       id,
-      title: "Yangi suhbat",
+      title: t.chat.newChat,
       messages: [],
       updatedAt: new Date().toISOString(),
       pinned: false,
@@ -186,7 +187,7 @@ export default function AgronomChat({ weather, chatRef }: AgronomChatProps) {
   };
 
   const renameConversation = (id: string, title: string) => {
-    const clean = title.trim() || "Yangi suhbat";
+    const clean = title.trim() || t.chat.newChat;
     setConversations((prev) => {
       const next = sortConversations(
         prev.map((c) => (c.id === id ? { ...c, title: clean } : c))
@@ -255,7 +256,7 @@ export default function AgronomChat({ weather, chatRef }: AgronomChatProps) {
   const handleVoice = () => {
     const rec = createSpeechRecognition();
     if (!rec) {
-      setInput((v) => v || "Ovozli kiritish qo'llab-quvvatlanmaydi.");
+      setInput((v) => v || t.chat.voiceUnsupported);
       return;
     }
     setListening(true);
@@ -275,7 +276,7 @@ export default function AgronomChat({ weather, chatRef }: AgronomChatProps) {
     const payloadText =
       text ||
       (images.length
-        ? `${images.length} ta o'simlik rasmini tahlil qiling.`
+        ? t.chat.analyzeImages.replace("{count}", String(images.length))
         : "");
 
     ensureConversation();
@@ -306,7 +307,11 @@ export default function AgronomChat({ weather, chatRef }: AgronomChatProps) {
           sessionId,
           images: imgs.length ? imgs : undefined,
           cropMemory: cropMemory || undefined,
-          weather: weatherPromptBlock(weather || null) || undefined,
+          weather:
+            weatherPromptBlock(
+              weather ? localizeWeather(weather, locale, regionId) : null,
+              locale
+            ) || undefined,
         },
         {
           onChunk: (content) => {
@@ -361,7 +366,7 @@ export default function AgronomChat({ weather, chatRef }: AgronomChatProps) {
         {
           id: assistantId,
           role: "assistant",
-          content: ERROR_MESSAGE,
+          content: t.chat.error,
           createdAt: new Date().toISOString(),
         },
       ]);
@@ -433,7 +438,7 @@ export default function AgronomChat({ weather, chatRef }: AgronomChatProps) {
               onClick={startNewChat}
               className="flex w-full items-center justify-center gap-2 rounded-xl border border-line bg-[#111827] px-3 py-2.5 text-sm font-medium transition hover:border-brand/30"
             >
-              + New Chat
+              + {t.chat.newChat}
             </button>
           </div>
           <div className="scrollbar-thin flex-1 space-y-0.5 overflow-y-auto px-2 pb-4">
@@ -498,7 +503,7 @@ export default function AgronomChat({ weather, chatRef }: AgronomChatProps) {
                             setMenuId(null);
                           }}
                         >
-                          <span aria-hidden>✏️</span> Edit
+                          <span aria-hidden>✏️</span> {t.chat.rename}
                         </button>
                         <button
                           type="button"
@@ -506,7 +511,7 @@ export default function AgronomChat({ weather, chatRef }: AgronomChatProps) {
                           onClick={() => togglePin(c.id)}
                         >
                           <span aria-hidden>📌</span>{" "}
-                          {c.pinned ? "Unpin" : "Pin"}
+                          {c.pinned ? t.chat.unpin : t.chat.pin}
                         </button>
                         <div className="my-1 border-t border-line" />
                         <button
@@ -517,7 +522,7 @@ export default function AgronomChat({ weather, chatRef }: AgronomChatProps) {
                             setMenuId(null);
                           }}
                         >
-                          <span aria-hidden>🗑️</span> Delete
+                          <span aria-hidden>🗑️</span> {t.chat.delete}
                         </button>
                       </div>
                     )}
@@ -532,7 +537,7 @@ export default function AgronomChat({ weather, chatRef }: AgronomChatProps) {
           <button
             type="button"
             className="absolute inset-0 z-10 bg-black/40 md:hidden"
-            aria-label="Yopish"
+            aria-label={t.chat.close}
             onClick={() => setSidebarOpen(false)}
           />
         )}
@@ -547,13 +552,25 @@ export default function AgronomChat({ weather, chatRef }: AgronomChatProps) {
             >
               ☰
             </button>
-            <span className="text-sm text-ink-muted">Suhbatlar</span>
+            <span className="text-sm text-ink-muted">{t.chat.chats}</span>
           </div>
 
           <div ref={scrollRef} className="scrollbar-thin flex-1 overflow-y-auto px-4 py-5 sm:px-6">
             {!hasMessages ? (
-              <div className="flex h-full flex-col items-center justify-center text-center text-ink-muted">
-                <p className="text-sm">Savolingizni yozing yoki rasm yuboring</p>
+              <div className="flex h-full flex-col items-center justify-center px-2 text-center">
+                <p className="text-sm text-ink-muted">{t.chat.emptyHint}</p>
+                <div className="mt-5 flex w-full max-w-lg flex-col gap-2">
+                  {t.chat.examples.map((example) => (
+                    <button
+                      key={example}
+                      type="button"
+                      onClick={() => void send(example)}
+                      className="rounded-xl border border-line/80 bg-[#111827]/60 px-4 py-3 text-left text-sm text-ink-muted shadow-soft transition hover:border-brand/30 hover:bg-[#111827] hover:text-ink"
+                    >
+                      {example}
+                    </button>
+                  ))}
+                </div>
               </div>
             ) : (
               <div className="mx-auto max-w-2xl space-y-4">
@@ -638,7 +655,7 @@ export default function AgronomChat({ weather, chatRef }: AgronomChatProps) {
                 onChange={(e) => setInput(e.target.value)}
                 onKeyDown={onKeyDown}
                 rows={1}
-                placeholder="Savolingizni yozing..."
+                placeholder={t.chat.placeholder}
                 className="max-h-32 min-h-[44px] w-full resize-none bg-transparent px-3 py-2.5 text-[15px] outline-none placeholder:text-ink-faint"
               />
               <div className="flex items-center justify-between px-1">
@@ -646,7 +663,7 @@ export default function AgronomChat({ weather, chatRef }: AgronomChatProps) {
                   <button
                     type="button"
                     className="btn-ghost !px-2.5 !py-1.5 text-base"
-                    title="Fayl"
+                    title={t.chat.file}
                     onClick={() => fileRef.current?.click()}
                   >
                     📎
@@ -654,7 +671,7 @@ export default function AgronomChat({ weather, chatRef }: AgronomChatProps) {
                   <button
                     type="button"
                     className="btn-ghost !px-2.5 !py-1.5 text-base"
-                    title="Rasm"
+                    title={t.chat.photo}
                     onClick={() => fileRef.current?.click()}
                   >
                     📷
@@ -662,7 +679,7 @@ export default function AgronomChat({ weather, chatRef }: AgronomChatProps) {
                   <button
                     type="button"
                     className={`btn-ghost !px-2.5 !py-1.5 text-base ${listening ? "!text-brand" : ""}`}
-                    title="Voice"
+                    title={t.chat.voice}
                     onClick={handleVoice}
                   >
                     🎤
@@ -680,7 +697,7 @@ export default function AgronomChat({ weather, chatRef }: AgronomChatProps) {
                   type="submit"
                   disabled={loading || (!input.trim() && images.length === 0)}
                   className="btn-primary !rounded-xl !px-3.5 !py-2 disabled:opacity-40"
-                  aria-label="Send"
+                  aria-label={t.chat.send}
                 >
                   ➜
                 </button>
@@ -707,12 +724,12 @@ export default function AgronomChat({ weather, chatRef }: AgronomChatProps) {
               id="delete-chat-title"
               className="text-lg font-semibold tracking-tight text-ink"
             >
-              Delete Chat?
+              {t.chat.deleteTitle}
             </h3>
             <p className="mt-2 text-sm leading-relaxed text-ink-muted">
-              Bu suhbatni o&apos;chirishni xohlaysizmi?
+              {t.chat.deleteBody}
               <br />
-              Bu amalni bekor qilib bo&apos;lmaydi.
+              <span className="text-ink-faint">{t.chat.deleteCannotUndo}</span>
             </p>
             <div className="mt-6 flex items-center justify-end gap-2">
               <button
@@ -720,14 +737,14 @@ export default function AgronomChat({ weather, chatRef }: AgronomChatProps) {
                 className="rounded-xl border border-line bg-transparent px-4 py-2 text-sm font-medium text-ink-muted transition hover:bg-canvas-muted hover:text-ink"
                 onClick={() => setDeleteConfirmId(null)}
               >
-                ❌ Cancel
+                {t.chat.cancel}
               </button>
               <button
                 type="button"
                 className="rounded-xl bg-[#DC2626] px-4 py-2 text-sm font-medium text-white transition hover:bg-[#B91C1C]"
                 onClick={confirmDeleteConversation}
               >
-                🗑️ Delete
+                🗑️ {t.chat.deleteConfirm}
               </button>
             </div>
           </div>

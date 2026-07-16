@@ -3,6 +3,7 @@ import type { SupportedLanguage } from "./api-types";
 const REJECTION_MESSAGES: Record<string, string> = {
   uz: "Kechirasiz, men faqat agronomiya bo'yicha yordam bera olaman.",
   ru: "Извините, я могу помочь только по вопросам агрономии.",
+  kk: "Кешіріңіз, мен тек агрономия мәселелері бойынша көмектесе аламын.",
   en: "Sorry, I can only help with agronomy-related questions.",
 };
 
@@ -10,8 +11,16 @@ export function getRejectionMessage(language: string): string {
   return REJECTION_MESSAGES[language] ?? REJECTION_MESSAGES.uz;
 }
 
-export function detectLanguage(text: string): SupportedLanguage {
+export function detectLanguage(text: string): SupportedLanguage | "kk" | "ky" {
   const lower = text.toLowerCase();
+
+  if (/[әғқңөұүһі]/i.test(text)) {
+    return "kk";
+  }
+
+  if (/[өүң]/i.test(text) && /[а-яё]/i.test(text)) {
+    return "ky";
+  }
 
   if (/[а-яё]/i.test(text) && !/[oʻgʻshch]/i.test(lower)) {
     return "ru";
@@ -19,7 +28,7 @@ export function detectLanguage(text: string): SupportedLanguage {
 
   if (
     /\b(the|what|how|why|is|are|can|help)\b/i.test(text) &&
-    !/[а-яё]/i.test(text)
+    !/[а-яёәғқңөұүһі]/i.test(text)
   ) {
     return "en";
   }

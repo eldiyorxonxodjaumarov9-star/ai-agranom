@@ -3,12 +3,14 @@
 import { useRef } from "react";
 import { motion } from "framer-motion";
 import { ThemeProvider } from "@/lib/context/ThemeContext";
+import { LocaleProvider, useT } from "@/lib/context/LocaleContext";
 import TopBar, { useRegionWeather } from "./TopBar";
 import ActionGrid from "./ActionGrid";
 import AgronomChat, { type AgronomChatHandle } from "./AgronomChat";
 import BottomNav from "./BottomNav";
 
 function HomeContent() {
+  const t = useT();
   const { regionId, setRegionId, weather, weatherLoading } = useRegionWeather();
   const chatApi = useRef<AgronomChatHandle | null>(null);
 
@@ -37,7 +39,6 @@ function HomeContent() {
       />
 
       <main className="pb-[calc(4.5rem+env(safe-area-inset-bottom))] md:pb-8">
-        {/* Hero */}
         <section className="mx-auto max-w-3xl px-4 pb-8 pt-12 text-center sm:px-6 sm:pt-16">
           <motion.div
             initial={{ opacity: 0, y: 14 }}
@@ -48,28 +49,27 @@ function HomeContent() {
               <span className="mr-2" aria-hidden>
                 🌱
               </span>
-              Men Agro Olam AI Agronomman
+              {t.hero.title}
             </h1>
-            <p className="mx-auto mt-4 max-w-xl text-[15px] leading-relaxed text-ink-muted sm:text-base">
-              O&apos;simlik kasalliklari, zararkunandalar, o&apos;g&apos;itlar,
-              sug&apos;orish, urug&apos;, hosildorlik va qishloq xo&apos;jaligi
-              bo&apos;yicha sun&apos;iy intellekt yordamchisi.
+            <p className="mx-auto mt-4 max-w-xl text-[15px] font-medium leading-relaxed text-ink-muted sm:text-lg">
+              {t.hero.subtitle}
             </p>
-            <p className="mt-3 text-sm text-ink-faint">
-              Savolingizni yozing yoki rasm yuboring.
+            <p className="mx-auto mt-4 max-w-2xl text-sm leading-relaxed text-ink-faint sm:text-[15px]">
+              {t.hero.description}
             </p>
           </motion.div>
         </section>
 
         <ActionGrid onAction={onAction} />
 
-        <AgronomChat weather={weather} chatRef={chatApi} />
+        <AgronomChat
+          weather={weather}
+          regionId={regionId}
+          chatRef={chatApi}
+        />
 
-        {/* Secondary marketplace anchor — not hero */}
         <section id="marketplace" className="mx-auto max-w-3xl px-4 pb-10 text-center sm:px-6">
-          <p className="text-xs text-ink-faint">
-            Marketplace ikkinchi o&apos;rinda — asosiy urg&apos;u AI Agronomga.
-          </p>
+          <p className="text-xs text-ink-faint">{t.marketplace.note}</p>
         </section>
       </main>
 
@@ -81,7 +81,9 @@ function HomeContent() {
 export default function PlatformHome() {
   return (
     <ThemeProvider>
-      <HomeContent />
+      <LocaleProvider>
+        <HomeContent />
+      </LocaleProvider>
     </ThemeProvider>
   );
 }

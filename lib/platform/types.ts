@@ -91,6 +91,7 @@ export interface WeatherSnapshot {
   temp: number;
   feelsLike: number;
   humidity: number;
+  windSpeed: number;
   precipitationProb: number;
   weatherCode: number;
   summary: string;

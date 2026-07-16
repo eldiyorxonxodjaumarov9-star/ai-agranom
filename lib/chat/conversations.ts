@@ -58,7 +58,7 @@ export function setActiveConversationId(id: string): void {
   localStorage.setItem(ACTIVE_KEY, id);
 }
 
-export function titleFromMessage(text: string): string {
+export function titleFromMessage(text: string, fallback = "Новый чат"): string {
   const clean = text.trim().replace(/\s+/g, " ");
-  return clean.length > 42 ? `${clean.slice(0, 42)}…` : clean || "Yangi suhbat";
+  return clean.length > 42 ? `${clean.slice(0, 42)}…` : clean || fallback;
 }

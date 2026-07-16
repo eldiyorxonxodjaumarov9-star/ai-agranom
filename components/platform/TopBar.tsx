@@ -4,11 +4,17 @@ import { useEffect, useRef, useState } from "react";
 import { motion, AnimatePresence } from "framer-motion";
 import {
   REGIONS,
+  DEFAULT_REGION_ID,
   fetchWeatherByRegion,
+  localizeWeather,
   weatherEmoji,
   type RegionId,
 } from "@/lib/platform/weather";
 import type { WeatherSnapshot } from "@/lib/platform/types";
+import { getRegionName } from "@/lib/i18n/regions";
+import { useLocale } from "@/lib/context/LocaleContext";
+import { saveUserProfile } from "@/lib/platform/user-profile";
+import LanguageSwitcher from "./LanguageSwitcher";
 
 const REGION_KEY = "agro-olam-region";
 
@@ -25,58 +31,76 @@ export default function TopBar({
   weather,
   weatherLoading,
 }: TopBarProps) {
-  const [open, setOpen] = useState(false);
-  const ref = useRef<HTMLDivElement>(null);
-  const region = REGIONS.find((r) => r.id === regionId) || REGIONS[0];
+  const { locale, t } = useLocale();
+  const [regionOpen, setRegionOpen] = useState(false);
+  const [weatherOpen, setWeatherOpen] = useState(false);
+  const regionRef = useRef<HTMLDivElement>(null);
+  const weatherRef = useRef<HTMLDivElement>(null);
+
+  const regionName = getRegionName(regionId, locale);
+  const displayWeather =
+    weather && !weatherLoading
+      ? localizeWeather(weather, locale, regionId)
+      : null;
 
   useEffect(() => {
     const close = (e: MouseEvent) => {
-      if (ref.current && !ref.current.contains(e.target as Node)) setOpen(false);
+      if (regionRef.current && !regionRef.current.contains(e.target as Node)) {
+        setRegionOpen(false);
+      }
+      if (weatherRef.current && !weatherRef.current.contains(e.target as Node)) {
+        setWeatherOpen(false);
+      }
     };
     document.addEventListener("mousedown", close);
     return () => document.removeEventListener("mousedown", close);
   }, []);
 
-  const isRain =
-    weather &&
-    (weather.precipitationProb >= 55 ||
-      [61, 63, 80, 95].includes(weather.weatherCode));
-
   return (
-    <header className="sticky top-0 z-40 border-b border-line/60 bg-[#0B1220]/80 backdrop-blur-xl">
-      <div className="mx-auto flex h-14 max-w-5xl items-center justify-between px-4 sm:px-6">
-        <div className="relative" ref={ref}>
+    <header className="sticky top-0 z-40 border-b border-line/60 bg-[#0B1220]/75 backdrop-blur-xl">
+      <div className="mx-auto flex h-14 max-w-5xl items-center justify-between gap-2 px-3 sm:gap-3 sm:px-6">
+        {/* Region */}
+        <div className="relative min-w-0 flex-1" ref={regionRef}>
           <button
             type="button"
-            onClick={() => setOpen((v) => !v)}
-            className="inline-flex items-center gap-2 rounded-xl border border-line bg-[#111827]/80 px-3 py-2 text-sm text-ink transition hover:border-brand/30"
+            onClick={() => {
+              setRegionOpen((v) => !v);
+              setWeatherOpen(false);
+            }}
+            className="inline-flex max-w-full items-center gap-1.5 rounded-xl border border-line/80 bg-[#111827]/70 px-2.5 py-2 text-sm text-ink shadow-soft backdrop-blur-md transition hover:border-brand/30 sm:gap-2 sm:px-3"
           >
-            <span aria-hidden>🌍</span>
-            <span className="font-medium">{region.name}</span>
-            <Chevron className={`h-3.5 w-3.5 text-ink-faint transition ${open ? "rotate-180" : ""}`} />
+            <span aria-hidden>📍</span>
+            <span className="hidden shrink-0 text-ink-faint sm:inline">
+              {t.nav.region}
+            </span>
+            <span className="truncate font-medium">{regionName}</span>
+            <Chevron
+              className={`h-3.5 w-3.5 shrink-0 text-ink-faint transition ${regionOpen ? "rotate-180" : ""}`}
+            />
           </button>
 
           <AnimatePresence>
-            {open && (
+            {regionOpen && (
               <motion.ul
                 initial={{ opacity: 0, y: -6 }}
                 animate={{ opacity: 1, y: 0 }}
                 exit={{ opacity: 0, y: -6 }}
-                className="absolute left-0 top-full z-50 mt-2 max-h-64 w-48 overflow-y-auto rounded-xl border border-line bg-[#111827] py-1 shadow-lift"
+                className="absolute left-0 top-full z-50 mt-2 max-h-72 w-[min(100vw-1.5rem,18rem)] overflow-y-auto rounded-xl border border-line bg-[#111827]/95 py-1 shadow-lift backdrop-blur-xl scrollbar-thin"
               >
                 {REGIONS.map((r) => (
                   <li key={r.id}>
                     <button
                       type="button"
-                      className={`block w-full px-3 py-2 text-left text-sm transition hover:bg-canvas-muted ${
-                        r.id === regionId ? "text-brand" : "text-ink-muted"
+                      className={`block w-full px-3 py-2.5 text-left text-sm transition hover:bg-canvas-muted ${
+                        r.id === regionId ? "font-medium text-brand" : "text-ink-muted"
                       }`}
                       onClick={() => {
                         onRegionChange(r.id);
-                        setOpen(false);
+                        saveUserProfile({ regionId: r.id });
+                        setRegionOpen(false);
                       }}
                     >
-                      {r.name}
+                      {getRegionName(r.id, locale)}
                     </button>
                   </li>
                 ))}
@@ -85,30 +109,87 @@ export default function TopBar({
           </AnimatePresence>
         </div>
 
-        <a href="/" className="hidden items-center gap-2 sm:flex">
-          <span className="flex h-7 w-7 items-center justify-center rounded-lg bg-brand text-brand-fg">
+        {/* Brand — desktop */}
+        <a href="/" className="hidden shrink-0 items-center gap-2 lg:flex">
+          <span className="flex h-7 w-7 items-center justify-center rounded-lg bg-brand text-brand-fg shadow-soft">
             <LeafIcon className="h-3.5 w-3.5" />
           </span>
-          <span className="text-sm font-semibold tracking-tight">Agro Olam</span>
+          <span className="text-sm font-semibold tracking-tight">{t.nav.brand}</span>
         </a>
 
-        <div className="inline-flex min-w-[7.5rem] items-center justify-end gap-2 rounded-xl border border-line bg-[#111827]/80 px-3 py-2 text-sm">
-          <span aria-hidden>🌤</span>
-          {weatherLoading ? (
-            <span className="text-ink-faint">…</span>
-          ) : weather ? (
-            <span className="font-medium text-ink">
-              {isRain ? (
-                <>🌧 Yomg&apos;ir</>
+        {/* Weather + Language */}
+        <div className="flex shrink-0 items-center gap-1.5 sm:gap-2">
+          <div className="relative" ref={weatherRef}>
+            <button
+              type="button"
+              onClick={() => {
+                setWeatherOpen((v) => !v);
+                setRegionOpen(false);
+              }}
+              className="inline-flex items-center gap-1.5 rounded-xl border border-line/80 bg-[#111827]/70 px-2.5 py-2 text-sm shadow-soft backdrop-blur-md transition hover:border-brand/30 sm:gap-2 sm:px-3"
+            >
+              <span aria-hidden>🌤</span>
+              <span className="hidden text-ink-faint sm:inline">{t.nav.weather}</span>
+              {weatherLoading ? (
+                <span className="font-medium text-ink-faint">…</span>
+              ) : displayWeather ? (
+                <span className="font-medium text-ink">
+                  {weatherEmoji(displayWeather.weatherCode)}{" "}
+                  {Math.round(displayWeather.temp)}°
+                </span>
               ) : (
-                <>
-                  {weatherEmoji(weather.weatherCode)} +{Math.round(weather.temp)}°
-                </>
+                <span className="text-ink-faint">—</span>
               )}
-            </span>
-          ) : (
-            <span className="text-ink-faint">—</span>
-          )}
+            </button>
+
+            <AnimatePresence>
+              {weatherOpen && displayWeather && !weatherLoading && (
+                <motion.div
+                  initial={{ opacity: 0, y: -6 }}
+                  animate={{ opacity: 1, y: 0 }}
+                  exit={{ opacity: 0, y: -6 }}
+                  className="absolute right-0 top-full z-50 mt-2 w-56 rounded-xl border border-line bg-[#111827]/95 p-4 shadow-lift backdrop-blur-xl"
+                >
+                  <p className="text-xs font-medium text-ink-faint">{regionName}</p>
+                  <p className="mt-1 text-lg font-semibold text-ink">
+                    {weatherEmoji(displayWeather.weatherCode)}{" "}
+                    {displayWeather.summary}
+                  </p>
+                  <ul className="mt-3 space-y-2 text-sm">
+                    <li className="flex justify-between gap-2">
+                      <span className="text-ink-muted">{t.weather.temperature}</span>
+                      <span className="font-medium text-ink">
+                        {Math.round(displayWeather.temp)}°C
+                      </span>
+                    </li>
+                    <li className="flex justify-between gap-2">
+                      <span className="text-ink-muted">{t.weather.humidity}</span>
+                      <span className="font-medium text-ink">
+                        {displayWeather.humidity}%
+                      </span>
+                    </li>
+                    <li className="flex justify-between gap-2">
+                      <span className="text-ink-muted">{t.weather.wind}</span>
+                      <span className="font-medium text-ink">
+                        {Math.round(displayWeather.windSpeed)} {t.weather.windUnit}
+                      </span>
+                    </li>
+                    <li className="flex justify-between gap-2">
+                      <span className="text-ink-muted">{t.weather.rain}</span>
+                      <span className="font-medium text-ink">
+                        {displayWeather.precipitationProb}%
+                      </span>
+                    </li>
+                  </ul>
+                  <p className="mt-3 border-t border-line pt-3 text-xs leading-relaxed text-ink-faint">
+                    {displayWeather.advice}
+                  </p>
+                </motion.div>
+              )}
+            </AnimatePresence>
+          </div>
+
+          <LanguageSwitcher />
         </div>
       </div>
     </header>
@@ -116,7 +197,7 @@ export default function TopBar({
 }
 
 export function useRegionWeather() {
-  const [regionId, setRegionId] = useState<string>("toshkent");
+  const [regionId, setRegionId] = useState<string>(DEFAULT_REGION_ID);
   const [weather, setWeather] = useState<WeatherSnapshot | null>(null);
   const [loading, setLoading] = useState(true);
 
@@ -124,6 +205,8 @@ export function useRegionWeather() {
     const saved = localStorage.getItem(REGION_KEY);
     if (saved && REGIONS.some((r) => r.id === saved)) {
       setRegionId(saved);
+    } else {
+      localStorage.setItem(REGION_KEY, DEFAULT_REGION_ID);
     }
   }, []);
 
@@ -131,7 +214,8 @@ export function useRegionWeather() {
     let cancelled = false;
     setLoading(true);
     localStorage.setItem(REGION_KEY, regionId);
-    fetchWeatherByRegion(regionId)
+    saveUserProfile({ regionId });
+    fetchWeatherByRegion(regionId, "ru")
       .then((w) => {
         if (!cancelled) setWeather(w);
       })
@@ -153,7 +237,14 @@ export function useRegionWeather() {
 
 function Chevron({ className }: { className?: string }) {
   return (
-    <svg className={className} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" aria-hidden>
+    <svg
+      className={className}
+      viewBox="0 0 24 24"
+      fill="none"
+      stroke="currentColor"
+      strokeWidth="2"
+      aria-hidden
+    >
       <path d="M6 9l6 6 6-6" strokeLinecap="round" strokeLinejoin="round" />
     </svg>
   );
