@@ -10,6 +10,7 @@
     "lint": "next lint",
     "typecheck": "tsc --noEmit",
     "start:api": "tsx server/index.ts",
+    "test": "npm run test:lang",
     "test:lang": "tsx scripts/test-language-detection.ts",
     "test:smoke": "node scripts/production-api-smoke.js"
   },
