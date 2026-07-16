@@ -2,6 +2,7 @@
 
 import Link from "next/link";
 import { LocaleProvider, useT } from "@/lib/context/LocaleContext";
+import { ThemeProvider } from "@/lib/context/ThemeContext";
 import type { MarketplaceProduct } from "@/lib/platform/types";
 
 function ProductBody({ product }: { product: MarketplaceProduct }) {
@@ -38,8 +39,10 @@ export default function ProductPageClient({
   product: MarketplaceProduct;
 }) {
   return (
-    <LocaleProvider>
-      <ProductBody product={product} />
-    </LocaleProvider>
+    <ThemeProvider>
+      <LocaleProvider>
+        <ProductBody product={product} />
+      </LocaleProvider>
+    </ThemeProvider>
   );
 }

@@ -58,7 +58,7 @@ export default function ActionGrid({ onAction }: ActionGridProps) {
             whileHover={{ y: -3, scale: 1.01 }}
             whileTap={{ scale: 0.98 }}
             onClick={() => onAction(a.action, a.prompt || undefined)}
-            className="group relative overflow-hidden rounded-2xl border border-line/80 bg-[#111827]/80 p-4 text-left shadow-soft backdrop-blur-sm transition hover:border-brand/35 hover:shadow-lift sm:p-5"
+            className="group relative overflow-hidden rounded-2xl border border-line/80 bg-canvas-elevated/80 p-4 text-left shadow-soft backdrop-blur-sm transition hover:border-brand/35 hover:shadow-lift sm:p-5"
           >
             <div className="pointer-events-none absolute inset-0 bg-gradient-to-br from-brand/10 via-transparent to-sky-500/5 opacity-0 transition group-hover:opacity-100" />
             <div className="relative">

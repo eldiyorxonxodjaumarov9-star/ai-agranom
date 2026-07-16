@@ -15,6 +15,7 @@ import { getRegionName } from "@/lib/i18n/regions";
 import { useLocale } from "@/lib/context/LocaleContext";
 import { saveUserProfile } from "@/lib/platform/user-profile";
 import LanguageSwitcher from "./LanguageSwitcher";
+import ThemeSwitcher from "./ThemeSwitcher";
 
 const REGION_KEY = "agro-olam-region";
 
@@ -57,7 +58,7 @@ export default function TopBar({
   }, []);
 
   return (
-    <header className="sticky top-0 z-40 border-b border-line/60 bg-[#0B1220]/75 backdrop-blur-xl">
+    <header className="sticky top-0 z-40 border-b border-line/60 bg-canvas/80 backdrop-blur-xl">
       <div className="mx-auto flex h-14 max-w-5xl items-center justify-between gap-2 px-3 sm:gap-3 sm:px-6">
         {/* Region */}
         <div className="relative min-w-0 flex-1" ref={regionRef}>
@@ -67,7 +68,7 @@ export default function TopBar({
               setRegionOpen((v) => !v);
               setWeatherOpen(false);
             }}
-            className="inline-flex max-w-full items-center gap-1.5 rounded-xl border border-line/80 bg-[#111827]/70 px-2.5 py-2 text-sm text-ink shadow-soft backdrop-blur-md transition hover:border-brand/30 sm:gap-2 sm:px-3"
+            className="inline-flex max-w-full items-center gap-1.5 rounded-xl border border-line/80 bg-canvas-elevated/80 px-2.5 py-2 text-sm text-ink shadow-soft backdrop-blur-md transition hover:border-brand/30 sm:gap-2 sm:px-3"
           >
             <span aria-hidden>📍</span>
             <span className="hidden shrink-0 text-ink-faint sm:inline">
@@ -85,7 +86,7 @@ export default function TopBar({
                 initial={{ opacity: 0, y: -6 }}
                 animate={{ opacity: 1, y: 0 }}
                 exit={{ opacity: 0, y: -6 }}
-                className="absolute left-0 top-full z-50 mt-2 max-h-72 w-[min(100vw-1.5rem,18rem)] overflow-y-auto rounded-xl border border-line bg-[#111827]/95 py-1 shadow-lift backdrop-blur-xl scrollbar-thin"
+                className="absolute left-0 top-full z-50 mt-2 max-h-72 w-[min(100vw-1.5rem,18rem)] overflow-y-auto rounded-xl border border-line bg-canvas-elevated/95 py-1 shadow-lift backdrop-blur-xl scrollbar-thin"
               >
                 {REGIONS.map((r) => (
                   <li key={r.id}>
@@ -114,10 +115,12 @@ export default function TopBar({
           <span className="flex h-7 w-7 items-center justify-center rounded-lg bg-brand text-brand-fg shadow-soft">
             <LeafIcon className="h-3.5 w-3.5" />
           </span>
-          <span className="text-sm font-semibold tracking-tight">{t.appName}</span>
+          <span className="text-sm font-semibold tracking-tight text-ink">
+            {t.appName}
+          </span>
         </a>
 
-        {/* Weather + Language */}
+        {/* Weather + Language + Theme */}
         <div className="flex shrink-0 items-center gap-1.5 sm:gap-2">
           <div className="relative" ref={weatherRef}>
             <button
@@ -126,7 +129,7 @@ export default function TopBar({
                 setWeatherOpen((v) => !v);
                 setRegionOpen(false);
               }}
-              className="inline-flex items-center gap-1.5 rounded-xl border border-line/80 bg-[#111827]/70 px-2.5 py-2 text-sm shadow-soft backdrop-blur-md transition hover:border-brand/30 sm:gap-2 sm:px-3"
+              className="inline-flex items-center gap-1.5 rounded-xl border border-line/80 bg-canvas-elevated/80 px-2.5 py-2 text-sm shadow-soft backdrop-blur-md transition hover:border-brand/30 sm:gap-2 sm:px-3"
             >
               <span aria-hidden>🌤</span>
               <span className="hidden text-ink-faint sm:inline">{t.nav.weather}</span>
@@ -148,7 +151,7 @@ export default function TopBar({
                   initial={{ opacity: 0, y: -6 }}
                   animate={{ opacity: 1, y: 0 }}
                   exit={{ opacity: 0, y: -6 }}
-                  className="absolute right-0 top-full z-50 mt-2 w-56 rounded-xl border border-line bg-[#111827]/95 p-4 shadow-lift backdrop-blur-xl"
+                  className="absolute right-0 top-full z-50 mt-2 w-56 rounded-xl border border-line bg-canvas-elevated/95 p-4 shadow-lift backdrop-blur-xl"
                 >
                   <p className="text-xs font-medium text-ink-faint">{regionName}</p>
                   <p className="mt-1 text-lg font-semibold text-ink">
@@ -190,6 +193,7 @@ export default function TopBar({
           </div>
 
           <LanguageSwitcher />
+          <ThemeSwitcher />
         </div>
       </div>
     </header>

@@ -23,7 +23,7 @@ export default function LanguageSwitcher() {
       <button
         type="button"
         onClick={() => setOpen((v) => !v)}
-        className="inline-flex items-center gap-1.5 rounded-xl border border-line/80 bg-[#111827]/70 px-2.5 py-2 text-sm shadow-soft backdrop-blur-md transition hover:border-brand/30 sm:gap-2 sm:px-3"
+        className="inline-flex items-center gap-1.5 rounded-xl border border-line/80 bg-canvas-elevated/80 px-2.5 py-2 text-sm shadow-soft backdrop-blur-md transition hover:border-brand/30 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-brand/40 sm:gap-2 sm:px-3"
         aria-expanded={open}
         aria-haspopup="listbox"
       >
@@ -45,7 +45,7 @@ export default function LanguageSwitcher() {
             animate={{ opacity: 1, y: 0, scale: 1 }}
             exit={{ opacity: 0, y: -6, scale: 0.98 }}
             transition={{ duration: 0.18 }}
-            className="absolute right-0 top-full z-[60] mt-2 w-48 overflow-hidden rounded-xl border border-line bg-[#111827]/95 py-1 shadow-lift backdrop-blur-xl"
+            className="absolute right-0 top-full z-[60] mt-2 w-48 overflow-hidden rounded-xl border border-line bg-canvas-elevated/95 py-1 shadow-lift backdrop-blur-xl"
           >
             {locales.map((item) => {
               const selected = item.code === locale;

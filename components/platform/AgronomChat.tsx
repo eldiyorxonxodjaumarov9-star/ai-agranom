@@ -1,4 +1,4 @@
-"use client";
+﻿"use client";
 
 import {
   useCallback,
@@ -428,7 +428,7 @@ export default function AgronomChat({ weather, regionId = "almaty", chatRef }: A
       <div className="glass-strong relative flex min-h-[520px] overflow-hidden rounded-3xl md:min-h-[600px]">
         {/* Sidebar */}
         <aside
-          className={`absolute inset-y-0 left-0 z-20 flex w-[240px] flex-col border-r border-line bg-[#0F172A]/95 backdrop-blur-xl transition-transform md:static md:translate-x-0 ${
+          className={`absolute inset-y-0 left-0 z-20 flex w-[240px] flex-col border-r border-line bg-canvas-muted/95 backdrop-blur-xl transition-transform md:static md:translate-x-0 ${
             sidebarOpen ? "translate-x-0" : "-translate-x-full"
           }`}
         >
@@ -436,7 +436,7 @@ export default function AgronomChat({ weather, regionId = "almaty", chatRef }: A
             <button
               type="button"
               onClick={startNewChat}
-              className="flex w-full items-center justify-center gap-2 rounded-xl border border-line bg-[#111827] px-3 py-2.5 text-sm font-medium transition hover:border-brand/30"
+              className="flex w-full items-center justify-center gap-2 rounded-xl border border-line bg-canvas-elevated px-3 py-2.5 text-sm font-medium transition hover:border-brand/30"
             >
               + {t.chat.newChat}
             </button>
@@ -446,7 +446,7 @@ export default function AgronomChat({ weather, regionId = "almaty", chatRef }: A
               <div
                 key={c.id}
                 className={`group relative rounded-xl ${
-                  c.id === activeId ? "bg-brand-soft" : "hover:bg-[#111827]"
+                  c.id === activeId ? "bg-brand-soft" : "hover:bg-canvas-elevated"
                 }`}
               >
                 {editingId === c.id ? (
@@ -465,7 +465,7 @@ export default function AgronomChat({ weather, regionId = "almaty", chatRef }: A
                       }
                     }}
                     onBlur={() => renameConversation(c.id, editTitle)}
-                    className="w-full rounded-xl border border-brand/40 bg-[#111827] px-3 py-2.5 text-sm outline-none"
+                    className="w-full rounded-xl border border-brand/40 bg-canvas-elevated px-3 py-2.5 text-sm outline-none"
                   />
                 ) : (
                   <button
@@ -473,7 +473,7 @@ export default function AgronomChat({ weather, regionId = "almaty", chatRef }: A
                     onClick={() => selectConversation(c.id)}
                     className="flex w-full items-center gap-2 px-3 py-2.5 text-left text-sm"
                   >
-                    {c.pinned && <span className="text-brand">📌</span>}
+                    {c.pinned && <span className="text-brand">рџ“Њ</span>}
                     <span className="line-clamp-1 flex-1 font-medium">{c.title}</span>
                   </button>
                 )}
@@ -487,11 +487,11 @@ export default function AgronomChat({ weather, regionId = "almaty", chatRef }: A
                         setMenuId((id) => (id === c.id ? null : c.id));
                       }}
                     >
-                      ⋯
+                      в‹Ї
                     </button>
                     {menuId === c.id && (
                       <div
-                        className="absolute right-0 top-full z-50 mt-1 w-40 overflow-hidden rounded-xl border border-line bg-[#111827] py-1 shadow-lift"
+                        className="absolute right-0 top-full z-50 mt-1 w-40 overflow-hidden rounded-xl border border-line bg-canvas-elevated py-1 shadow-lift"
                         onClick={(e) => e.stopPropagation()}
                       >
                         <button
@@ -503,14 +503,14 @@ export default function AgronomChat({ weather, regionId = "almaty", chatRef }: A
                             setMenuId(null);
                           }}
                         >
-                          <span aria-hidden>✏️</span> {t.chat.rename}
+                          <span aria-hidden>вњЏпёЏ</span> {t.chat.rename}
                         </button>
                         <button
                           type="button"
                           className="flex w-full items-center gap-2 px-3 py-2 text-left text-sm text-ink hover:bg-canvas-muted"
                           onClick={() => togglePin(c.id)}
                         >
-                          <span aria-hidden>📌</span>{" "}
+                          <span aria-hidden>рџ“Њ</span>{" "}
                           {c.pinned ? t.chat.unpin : t.chat.pin}
                         </button>
                         <div className="my-1 border-t border-line" />
@@ -522,7 +522,7 @@ export default function AgronomChat({ weather, regionId = "almaty", chatRef }: A
                             setMenuId(null);
                           }}
                         >
-                          <span aria-hidden>🗑️</span> {t.chat.delete}
+                          <span aria-hidden>рџ—‘пёЏ</span> {t.chat.delete}
                         </button>
                       </div>
                     )}
@@ -543,14 +543,14 @@ export default function AgronomChat({ weather, regionId = "almaty", chatRef }: A
         )}
 
         {/* Chat pane */}
-        <div className="relative flex min-w-0 flex-1 flex-col bg-[#0B1220]/40">
+        <div className="relative flex min-w-0 flex-1 flex-col bg-canvas/40">
           <div className="flex h-12 items-center gap-2 border-b border-line px-3 md:hidden">
             <button
               type="button"
               className="btn-ghost !px-2"
               onClick={() => setSidebarOpen(true)}
             >
-              ☰
+              в°
             </button>
             <span className="text-sm text-ink-muted">{t.chat.chats}</span>
           </div>
@@ -565,7 +565,7 @@ export default function AgronomChat({ weather, regionId = "almaty", chatRef }: A
                       key={example}
                       type="button"
                       onClick={() => void send(example)}
-                      className="rounded-xl border border-line/80 bg-[#111827]/60 px-4 py-3 text-left text-sm text-ink-muted shadow-soft transition hover:border-brand/30 hover:bg-[#111827] hover:text-ink"
+                      className="rounded-xl border border-line/80 bg-canvas-elevated/60 px-4 py-3 text-left text-sm text-ink-muted shadow-soft transition hover:border-brand/30 hover:bg-canvas-elevated hover:text-ink"
                     >
                       {example}
                     </button>
@@ -586,7 +586,7 @@ export default function AgronomChat({ weather, regionId = "almaty", chatRef }: A
                         className={`max-w-[92%] rounded-2xl px-4 py-3 text-[15px] leading-relaxed sm:max-w-[85%] ${
                           m.role === "user"
                             ? "bg-brand text-brand-fg"
-                            : "border border-line bg-[#111827] text-ink"
+                            : "border border-line bg-canvas-elevated text-ink"
                         }`}
                       >
                         {m.imageUrls?.length ? (
@@ -618,7 +618,7 @@ export default function AgronomChat({ weather, regionId = "almaty", chatRef }: A
                   ))}
                 </AnimatePresence>
                 {loading && !messages.some((m) => m.isStreaming) && (
-                  <div className="flex gap-1.5 rounded-2xl border border-line bg-[#111827] px-4 py-3 w-fit">
+                  <div className="flex gap-1.5 rounded-2xl border border-line bg-canvas-elevated px-4 py-3 w-fit">
                     <span className="h-1.5 w-1.5 animate-bounce-dot rounded-full bg-ink-faint [animation-delay:-0.32s]" />
                     <span className="h-1.5 w-1.5 animate-bounce-dot rounded-full bg-ink-faint [animation-delay:-0.16s]" />
                     <span className="h-1.5 w-1.5 animate-bounce-dot rounded-full bg-ink-faint" />
@@ -631,7 +631,7 @@ export default function AgronomChat({ weather, regionId = "almaty", chatRef }: A
           <div className="border-t border-line p-3 sm:p-4">
             <form
               onSubmit={onSubmit}
-              className="rounded-2xl border border-line bg-[#111827]/80 p-2 focus-within:border-brand/40 focus-within:ring-2 focus-within:ring-brand/15"
+              className="rounded-2xl border border-line bg-canvas-elevated/80 p-2 focus-within:border-brand/40 focus-within:ring-2 focus-within:ring-brand/15"
             >
               {images.length > 0 && (
                 <div className="mb-2 flex flex-wrap gap-2 px-1">
@@ -643,7 +643,7 @@ export default function AgronomChat({ weather, regionId = "almaty", chatRef }: A
                         className="absolute -right-1 -top-1 rounded-full bg-ink px-1 text-[10px] text-canvas"
                         onClick={() => setImages((p) => p.filter((_, j) => j !== i))}
                       >
-                        ×
+                        Г—
                       </button>
                     </div>
                   ))}
@@ -666,7 +666,7 @@ export default function AgronomChat({ weather, regionId = "almaty", chatRef }: A
                     title={t.chat.file}
                     onClick={() => fileRef.current?.click()}
                   >
-                    📎
+                    рџ“Ћ
                   </button>
                   <button
                     type="button"
@@ -674,7 +674,7 @@ export default function AgronomChat({ weather, regionId = "almaty", chatRef }: A
                     title={t.chat.photo}
                     onClick={() => fileRef.current?.click()}
                   >
-                    📷
+                    рџ“·
                   </button>
                   <button
                     type="button"
@@ -682,7 +682,7 @@ export default function AgronomChat({ weather, regionId = "almaty", chatRef }: A
                     title={t.chat.voice}
                     onClick={handleVoice}
                   >
-                    🎤
+                    рџЋ¤
                   </button>
                   <input
                     ref={fileRef}
@@ -699,7 +699,7 @@ export default function AgronomChat({ weather, regionId = "almaty", chatRef }: A
                   className="btn-primary !rounded-xl !px-3.5 !py-2 disabled:opacity-40"
                   aria-label={t.chat.send}
                 >
-                  ➜
+                  вћњ
                 </button>
               </div>
             </form>
@@ -717,7 +717,7 @@ export default function AgronomChat({ weather, regionId = "almaty", chatRef }: A
           onClick={() => setDeleteConfirmId(null)}
         >
           <div
-            className="w-full max-w-sm rounded-2xl border border-line bg-[#111827] p-6 shadow-lift"
+            className="w-full max-w-sm rounded-2xl border border-line bg-canvas-elevated p-6 shadow-lift"
             onClick={(e) => e.stopPropagation()}
           >
             <h3
@@ -744,7 +744,7 @@ export default function AgronomChat({ weather, regionId = "almaty", chatRef }: A
                 className="rounded-xl bg-[#DC2626] px-4 py-2 text-sm font-medium text-white transition hover:bg-[#B91C1C]"
                 onClick={confirmDeleteConversation}
               >
-                🗑️ {t.chat.deleteConfirm}
+                рџ—‘пёЏ {t.chat.deleteConfirm}
               </button>
             </div>
           </div>
@@ -753,3 +753,4 @@ export default function AgronomChat({ weather, regionId = "almaty", chatRef }: A
     </section>
   );
 }
+

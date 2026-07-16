@@ -2,6 +2,7 @@
 
 import { ChatProvider } from "@/lib/context/ChatContext";
 import { LocaleProvider, useT } from "@/lib/context/LocaleContext";
+import { ThemeProvider } from "@/lib/context/ThemeContext";
 import Header from "./Header";
 import Hero from "./Hero";
 import CategoryGrid from "./CategoryGrid";
@@ -131,11 +132,13 @@ function MarketplaceBody() {
 
 export default function MarketplaceHome() {
   return (
-    <LocaleProvider>
-      <ChatProvider>
-        <MarketplaceBody />
-      </ChatProvider>
-    </LocaleProvider>
+    <ThemeProvider>
+      <LocaleProvider>
+        <ChatProvider>
+          <MarketplaceBody />
+        </ChatProvider>
+      </LocaleProvider>
+    </ThemeProvider>
   );
 }
 

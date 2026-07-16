@@ -14,7 +14,7 @@ export default function PlatformHeader({
   searchValue,
   onSearchChange,
 }: PlatformHeaderProps) {
-  const { theme, toggleTheme } = useTheme();
+  const { toggleTheme, resolvedTheme } = useTheme();
 
   return (
     <header className="sticky top-0 z-40 border-b border-line/70 bg-canvas/80 backdrop-blur-xl">
@@ -56,7 +56,7 @@ export default function PlatformHeader({
             className="btn-ghost !px-2.5"
             aria-label="Tema almashtirish"
           >
-            {theme === "dark" ? (
+            {resolvedTheme === "dark" ? (
               <SunIcon className="h-4 w-4" />
             ) : (
               <MoonIcon className="h-4 w-4" />

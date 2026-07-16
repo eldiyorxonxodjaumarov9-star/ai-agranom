@@ -30,7 +30,7 @@ function HomeContent() {
   };
 
   return (
-    <div className="min-h-screen bg-[#0B1220] text-ink">
+    <div className="min-h-screen bg-canvas text-ink">
       <TopBar
         regionId={regionId}
         onRegionChange={setRegionId}

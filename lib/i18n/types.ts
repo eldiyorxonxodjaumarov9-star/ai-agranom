@@ -94,4 +94,10 @@ export interface Messages {
     pdfReportTitle: string;
     pdfAnalysis: string;
   };
+  theme: {
+    label: string;
+    light: string;
+    dark: string;
+    system: string;
+  };
 }

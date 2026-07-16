@@ -35,7 +35,7 @@ export default function BottomNav({ active = "home", onAi }: BottomNavProps) {
   ];
 
   return (
-    <nav className="fixed inset-x-0 bottom-0 z-50 border-t border-line/80 bg-[#0B1220]/90 pb-[env(safe-area-inset-bottom)] backdrop-blur-xl md:hidden">
+    <nav className="fixed inset-x-0 bottom-0 z-50 border-t border-line/80 bg-canvas/90 pb-[env(safe-area-inset-bottom)] backdrop-blur-xl md:hidden">
       <ul className="mx-auto flex h-16 max-w-lg items-stretch justify-around px-1">
         {items.map((item) => {
           const isActive = active === item.id;

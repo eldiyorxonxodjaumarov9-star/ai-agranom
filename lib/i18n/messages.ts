@@ -119,6 +119,12 @@ function buildMessages(locale: Locale): Messages {
         pdfReportTitle: `${appName} — Professional Report`,
         pdfAnalysis: `2. ${appName} талдауы және ұсыныс`,
       },
+      theme: {
+        label: "Тақырып",
+        light: "Жарық",
+        dark: "Қараңғы",
+        system: "Жүйелік",
+      },
     };
   }
 
@@ -222,6 +228,12 @@ function buildMessages(locale: Locale): Messages {
         pdfReportTitle: `${appName} — Professional Report`,
         pdfAnalysis: `2. Анализ и рекомендации ${appName}`,
       },
+      theme: {
+        label: "Тема",
+        light: "Светлая",
+        dark: "Тёмная",
+        system: "Системная",
+      },
     };
   }
 
@@ -323,6 +335,12 @@ function buildMessages(locale: Locale): Messages {
         quickActionsHint: `Бир басуу менен ${appName} багыттаңыз`,
         pdfReportTitle: `${appName} — Professional Report`,
         pdfAnalysis: `2. ${appName} анализи жана сунуш`,
+      },
+      theme: {
+        label: "Тема",
+        light: "Жарык",
+        dark: "Караңгы",
+        system: "Системалык",
       },
     };
   }
@@ -426,6 +444,12 @@ function buildMessages(locale: Locale): Messages {
       quickActionsHint: `Bir bosishda ${appName} ga yo'naling`,
       pdfReportTitle: `${appName} — Professional Report`,
       pdfAnalysis: `2. ${appName} tahlili va tavsiya`,
+    },
+    theme: {
+      label: "Mavzu",
+      light: "Kunduzgi",
+      dark: "Tungi",
+      system: "Tizim",
     },
   };
 }

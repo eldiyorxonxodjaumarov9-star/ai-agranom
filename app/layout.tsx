@@ -14,6 +14,19 @@ export const metadata: Metadata = {
   description: ruLocale.metaDescription,
 };
 
+/** Prevent theme flash before hydration (next-themes) */
+const themeInitScript = `
+(function(){
+  try {
+    var key = 'agro-olam-theme';
+    var stored = localStorage.getItem(key);
+    var theme = stored || 'system';
+    var dark = theme === 'dark' || (theme === 'system' && window.matchMedia('(prefers-color-scheme: dark)').matches);
+    document.documentElement.classList.toggle('dark', dark);
+  } catch (e) {}
+})();
+`;
+
 export default function RootLayout({
   children,
 }: {
@@ -21,6 +34,9 @@ export default function RootLayout({
 }) {
   return (
     <html lang="uz" suppressHydrationWarning>
+      <head>
+        <script dangerouslySetInnerHTML={{ __html: themeInitScript }} />
+      </head>
       <body className={`${outfit.variable} font-sans`}>{children}</body>
     </html>
   );

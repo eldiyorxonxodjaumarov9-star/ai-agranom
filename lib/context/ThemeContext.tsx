@@ -1,58 +1,37 @@
 "use client";
 
-import {
-  createContext,
-  useCallback,
-  useContext,
-  useEffect,
-  useState,
-  type ReactNode,
-} from "react";
+import { ThemeProvider as NextThemesProvider } from "next-themes";
+import { useTheme as useNextTheme } from "next-themes";
+import type { ReactNode } from "react";
 
-type Theme = "light" | "dark";
-
-interface ThemeContextValue {
-  theme: Theme;
-  toggleTheme: () => void;
-  setTheme: (t: Theme) => void;
-}
-
-const ThemeContext = createContext<ThemeContextValue | null>(null);
-const STORAGE_KEY = "agro-olam-theme";
+export type AppTheme = "light" | "dark" | "system";
 
 export function ThemeProvider({ children }: { children: ReactNode }) {
-  const [theme, setThemeState] = useState<Theme>("light");
-
-  useEffect(() => {
-    const stored = localStorage.getItem(STORAGE_KEY) as Theme | null;
-    const preferred =
-      stored ||
-      (window.matchMedia("(prefers-color-scheme: dark)").matches
-        ? "dark"
-        : "light");
-    setThemeState(preferred);
-    document.documentElement.classList.toggle("dark", preferred === "dark");
-  }, []);
-
-  const setTheme = useCallback((t: Theme) => {
-    setThemeState(t);
-    localStorage.setItem(STORAGE_KEY, t);
-    document.documentElement.classList.toggle("dark", t === "dark");
-  }, []);
-
-  const toggleTheme = useCallback(() => {
-    setTheme(theme === "dark" ? "light" : "dark");
-  }, [theme, setTheme]);
-
   return (
-    <ThemeContext.Provider value={{ theme, toggleTheme, setTheme }}>
+    <NextThemesProvider
+      attribute="class"
+      defaultTheme="system"
+      enableSystem
+      disableTransitionOnChange
+      storageKey="agro-olam-theme"
+    >
       {children}
-    </ThemeContext.Provider>
+    </NextThemesProvider>
   );
 }
 
 export function useTheme() {
-  const ctx = useContext(ThemeContext);
-  if (!ctx) throw new Error("useTheme must be used within ThemeProvider");
-  return ctx;
+  const { theme, setTheme, resolvedTheme, systemTheme } = useNextTheme();
+
+  const toggleTheme = () => {
+    setTheme(resolvedTheme === "dark" ? "light" : "dark");
+  };
+
+  return {
+    theme: (theme as AppTheme | undefined) ?? "system",
+    setTheme: (t: AppTheme) => setTheme(t),
+    resolvedTheme: resolvedTheme as "light" | "dark" | undefined,
+    systemTheme: systemTheme as "light" | "dark" | undefined,
+    toggleTheme,
+  };
 }
