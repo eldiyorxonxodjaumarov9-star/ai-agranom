@@ -14,7 +14,10 @@ export function getRejectionMessage(language: string): string {
 export function detectLanguage(text: string): SupportedLanguage | "kk" | "ky" {
   const lower = text.toLowerCase();
 
-  if (/[әғқңөұүһі]/i.test(text)) {
+  // Distinguish Kazakh vs Kyrgyz:
+  // - Kazakh has several unique letters (ә ғ қ ұ і һ)
+  // - Kyrgyz typically uses ө ү ң (and may not include Kazakh-unique letters)
+  if (/[әғқұіһ]/i.test(text)) {
     return "kk";
   }
 
