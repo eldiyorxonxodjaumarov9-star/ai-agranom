@@ -25,7 +25,7 @@ export function detectLanguage(text: string): SupportedLanguage | "kk" | "ky" {
   // Word-level hints:
   // - Kazakh commonly uses "деген/деген" in questions like "Месси деген кім?"
   // - Kyrgyz often uses "ким/кем" but without Russian "кто/такой"
-  if (/\bдеген\b/i.test(text) || /\bдеген\b/i.test(lower)) {
+  if (/деген/i.test(text) || /деген/i.test(lower)) {
     return "kk";
   }
 
@@ -35,7 +35,7 @@ export function detectLanguage(text: string): SupportedLanguage | "kk" | "ky" {
 
   if (/[а-яё]/i.test(text) && !/[oʻgʻshch]/i.test(lower)) {
     // If it looks like "кого/кто" it's Russian; otherwise "ким/кем" leans Kyrgyz.
-    if (/\b(ким|кем)\b/i.test(text) && !/\b(кто|такой)\b/i.test(text)) {
+    if (/(ким|кем)/i.test(text) && !/(кто|такой)/i.test(text)) {
       return "ky";
     }
     return "ru";
