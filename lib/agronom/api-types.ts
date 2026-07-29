@@ -46,4 +46,17 @@ export interface HealthApiResponse {
   status: "ok";
   service: typeof SERVICE_NAME;
   version: string;
+  /** Optional Phase 3 KB diagnostics — older clients ignore */
+  database?: "connected" | "disconnected" | "not_configured";
+  pgvector?: "ready" | "missing" | "unknown" | "not_configured";
+  knowledgeBaseMode?: "database" | "corpus_fallback";
+  corpusFallback?: boolean;
+  recordCounts?: {
+    crops: number;
+    diseases: number;
+    pests: number;
+    chunks: number;
+    verifiedProducts: number;
+  };
+  databaseUrlRequired?: boolean;
 }

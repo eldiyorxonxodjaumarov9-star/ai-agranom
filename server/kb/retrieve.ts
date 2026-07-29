@@ -6,6 +6,8 @@ import type {
 } from "./types";
 import { getVerifiedChunks } from "./store";
 import { cosineSimilarity, ensureChunkEmbeddings } from "./embeddings";
+import { searchChunksInDb } from "./db/chunks";
+import { isDatabaseConfigured } from "./db/client";
 
 function tokenize(q: string): string[] {
   return q
@@ -43,13 +45,14 @@ function formatContext(chunks: RetrievedChunk[]): string {
       "VERIFIED_KB: no high-confidence chunks matched.",
       "If evidence is insufficient, say diagnosis is not certain and ask clarifying questions.",
       "Never invent dosages or unregistered products.",
+      "Recommend marketplace products only if VERIFIED + ACTIVE + labelVerified.",
     ].join("\n");
   }
 
   return chunks
     .map((c, i) => {
       return [
-        `[KB#${i + 1} | ${c.entityType} | reliability=${c.reliabilityScore.toFixed(2)} | score=${c.score.toFixed(3)}]`,
+        `[KB#${i + 1} | ${c.entityType} | reliability=${c.reliabilityScore.toFixed(2)} | quality=${c.qualityScore ?? "n/a"} | score=${c.score.toFixed(3)}]`,
         `Title: ${c.title}`,
         `Source: ${c.organization} — ${c.sourceTitle}`,
         `URL: ${c.sourceUrl}`,
@@ -59,25 +62,15 @@ function formatContext(chunks: RetrievedChunk[]): string {
     .join("\n\n");
 }
 
-export async function retrieveKnowledge(
+function rankChunks(
   query: string,
+  chunks: KnowledgeChunk[],
+  tokens: string[],
+  embeddings: Record<string, number[]>,
+  queryVec: number[] | null,
   options?: { limit?: number; language?: string; cropHint?: string }
-): Promise<RagRetrievalResult> {
+): RagRetrievalResult {
   const limit = options?.limit ?? 8;
-  const tokens = tokenize(query);
-  const chunks = getVerifiedChunks();
-  const embeddings = await ensureChunkEmbeddings(chunks);
-
-  let queryVec: number[] | null = null;
-  try {
-    if (Object.keys(embeddings).length > 0) {
-      const { embedTexts } = await import("./embeddings");
-      const [v] = await embedTexts([query]);
-      queryVec = v;
-    }
-  } catch {
-    queryVec = null;
-  }
 
   const scored: RetrievedChunk[] = chunks.map((chunk) => {
     const kw = keywordScore(chunk, tokens);
@@ -101,12 +94,18 @@ export async function retrieveKnowledge(
       score += 0.08;
     }
 
-    // Exact scientific-name boost
-    if (/[A-Z][a-z]+ [a-z]+/.test(query) && chunk.keywords.some((k) => query.toLowerCase().includes(k.toLowerCase()))) {
+    if (
+      /[A-Z][a-z]+ [a-z]+/.test(query) &&
+      chunk.keywords.some((k) => query.toLowerCase().includes(k.toLowerCase()))
+    ) {
       score += 0.06;
     }
 
-    // Soft prefer same-script hits for Cyrillic queries
+    // EPPO-like codes
+    if (/\b[A-Z]{4,6}\b/.test(query) && chunk.keywords.some((k) => query.includes(k))) {
+      score += 0.08;
+    }
+
     const hasCyr = /[а-яёәғқңөұүһі]/i.test(query);
     if (hasCyr && (chunk.language === "ru" || chunk.language === "kk" || chunk.language === "ky")) {
       score += 0.03;
@@ -120,9 +119,12 @@ export async function retrieveKnowledge(
     };
   });
 
-  // Rerank: reliability + quality, keep keyword/vector winners
   const top = scored
-    .filter((c) => c.score > 0.12 || (c.keywordScore ?? 0) > 0)
+    .filter(
+      (c) =>
+        (c.qualityScore == null || c.qualityScore >= 70) &&
+        (c.score > 0.12 || (c.keywordScore ?? 0) > 0)
+    )
     .sort((a, b) => {
       const qa = (a.qualityScore ?? 70) / 100;
       const qb = (b.qualityScore ?? 70) / 100;
@@ -150,4 +152,43 @@ export async function retrieveKnowledge(
     sources: Array.from(sourceMap.values()),
     confidence,
   };
+}
+
+/**
+ * Database-first hybrid retrieval with corpus emergency fallback.
+ */
+export async function retrieveKnowledge(
+  query: string,
+  options?: { limit?: number; language?: string; cropHint?: string }
+): Promise<RagRetrievalResult> {
+  const tokens = tokenize(query);
+
+  let chunks: KnowledgeChunk[] | null = null;
+  if (isDatabaseConfigured()) {
+    chunks = await searchChunksInDb(query, {
+      limit: 80,
+      language: options?.language,
+      cropHint: options?.cropHint,
+    });
+  }
+
+  const usingDb = Boolean(chunks && chunks.length > 0);
+  if (!usingDb) {
+    chunks = getVerifiedChunks();
+  }
+
+  const embeddings = await ensureChunkEmbeddings(chunks!);
+
+  let queryVec: number[] | null = null;
+  try {
+    if (Object.keys(embeddings).length > 0) {
+      const { embedTexts } = await import("./embeddings");
+      const [v] = await embedTexts([query]);
+      queryVec = v;
+    }
+  } catch {
+    queryVec = null;
+  }
+
+  return rankChunks(query, chunks!, tokens, embeddings, queryVec, options);
 }

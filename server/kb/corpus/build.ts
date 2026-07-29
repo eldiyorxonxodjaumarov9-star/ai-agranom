@@ -2,8 +2,13 @@ import { createHash } from "crypto";
 import type { KnowledgeChunk, KbStatus } from "../types";
 import { CROPS, type LangMap } from "./crops";
 import { DISEASES } from "./diseases";
+import { DISEASES_EXTRA } from "./diseases-extra";
 import { PESTS } from "./pests";
+import { PESTS_EXTRA } from "./pests-extra";
 import { ACTIVE_INGREDIENTS } from "./products";
+
+const ALL_DISEASES = [...DISEASES, ...DISEASES_EXTRA];
+const ALL_PESTS = [...PESTS, ...PESTS_EXTRA];
 
 const NOW = "2026-07-30T00:00:00.000Z";
 
@@ -122,7 +127,7 @@ export function buildCorpusChunks(): KnowledgeChunk[] {
     }
   }
 
-  for (const d of DISEASES) {
+  for (const d of ALL_DISEASES) {
     for (const lang of langs()) {
       const name = d.names[lang];
       const title = `${name} (${d.scientificName})`;
@@ -238,10 +243,61 @@ export function buildCorpusChunks(): KnowledgeChunk[] {
           }),
         })
       );
+
+      // Favorable conditions (epidemiology)
+      out.push(
+        chunk({
+          id: `corp-cond-${d.id}-${lang}`,
+          entityType: "disease",
+          entityId: `disease-conditions-${d.id}`,
+          language: lang,
+          title: `Conditions: ${name}`,
+          content: [
+            `Favorable conditions for ${name} (${d.scientificName}): ${d.conditions[lang]}`,
+            `Use this to time scouting and cultural prevention; do not invent spray calendars.`,
+            disclaimer(lang),
+          ].join(" "),
+          keywords: [d.id, "conditions", "sharoit", "влажность", ...d.cropIds],
+          cropIds: d.cropIds,
+          sourceUrl: d.sourceUrl,
+          sourceTitle: `${d.organization} conditions — ${d.scientificName}`,
+          organization: d.organization,
+          reliabilityScore: 0.9,
+          status: "VERIFIED",
+          qualityScore: 78,
+        })
+      );
+
+      // Differential diagnosis
+      out.push(
+        chunk({
+          id: `corp-diff-${d.id}-${lang}`,
+          entityType: "symptom",
+          entityId: `diff-${d.id}`,
+          language: lang,
+          title: `Differential: ${name}`,
+          content: [
+            `Differential diagnosis notes for ${name} (${d.scientificName}).`,
+            d.confusedWith?.length
+              ? `May be confused with: ${d.confusedWith.join(", ")}. Compare lesion pattern, sporulation, and crop history.`
+              : `Compare with nutrient disorders and lookalikes; ask clarifying questions before asserting a single diagnosis.`,
+            `Early: ${d.earlySymptoms[lang]} Late: ${d.lateSymptoms[lang]}`,
+            disclaimer(lang),
+          ].join(" "),
+          keywords: [d.id, "differential", "farqlash", ...d.cropIds],
+          cropIds: d.cropIds,
+          sourceUrl: d.sourceUrl,
+          sourceTitle: `${d.organization} differential — ${d.scientificName}`,
+          organization: d.organization,
+          reliabilityScore: 0.88,
+          status: "VERIFIED",
+          qualityScore: 76,
+        })
+      );
     }
   }
 
-  for (const p of PESTS) {
+  for (const p of ALL_PESTS) {
     for (const lang of langs()) {
       const name = p.names[lang];
       const title = `${name} (${p.scientificName})`;
@@ -351,8 +407,8 @@ export function corpusStats(chunks: KnowledgeChunk[] = buildCorpusChunks()) {
   return {
     totalChunks: chunks.length,
     crops: CROPS.length,
-    diseases: DISEASES.length,
-    pests: PESTS.length,
+    diseases: ALL_DISEASES.length,
+    pests: ALL_PESTS.length,
     activeIngredients: ACTIVE_INGREDIENTS.length,
     verified: chunks.filter((c) => c.status === "VERIFIED").length,
     needsReview: chunks.filter((c) => c.status === "NEEDS_REVIEW").length,

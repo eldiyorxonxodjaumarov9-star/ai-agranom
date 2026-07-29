@@ -1,6 +1,5 @@
-// Production Prisma schema for Agro Olam KB (activate with DATABASE_URL).
-// Runtime still uses committed corpus + file/memory store until DATABASE_URL is set.
-// Apply: npx prisma migrate deploy (requires postgres + CREATE EXTENSION vector)
+// Production Prisma schema — Agro Olam Knowledge Base
+// Activate with DATABASE_URL. Without it, runtime uses corpus fallback.
 
 generator client {
   provider        = "prisma-client-js"
@@ -10,7 +9,7 @@ generator client {
 datasource db {
   provider   = "postgresql"
   url        = env("DATABASE_URL")
-  extensions = [pgvector(map: "vector"), pg_trgm]
+  extensions = [vector, pg_trgm, unaccent]
 }
 
 enum KbStatus {
@@ -22,6 +21,9 @@ enum KbStatus {
   ARCHIVED
   AI_TRANSLATED
   VERIFIED_TRANSLATION
+  CONFLICT
+  EXPIRED
+  REVOKED
 }
 
 enum EntityType {
@@ -30,6 +32,7 @@ enum EntityType {
   pest
   symptom
   treatment
+  prevention
   product
   nutrient
   irrigation
@@ -37,8 +40,15 @@ enum EntityType {
   general
 }
 
+enum RegistrationStatus {
+  ACTIVE
+  EXPIRED
+  REVOKED
+  UNKNOWN
+}
+
 model Source {
-  id               String            @id
+  id               String              @id
   title            String
   organization     String
   url              String
@@ -49,67 +59,108 @@ model Source {
   checksum         String?
   registryId       String?
   deletedAt        DateTime?
-  createdAt        DateTime          @default(now())
-  updatedAt        DateTime          @updatedAt
-  chunks           KnowledgeChunk[]
+  createdAt        DateTime            @default(now())
+  updatedAt        DateTime            @updatedAt
+  version          Int                 @default(1)
   documents        KnowledgeDocument[]
+  chunks           KnowledgeChunkRow[]
+
+  @@index([organization])
+  @@index([checksum])
 }
 
 model Crop {
-  id                String         @id
-  commonNameUz      String?
-  commonNameRu      String?
-  commonNameKk      String?
-  commonNameKy      String?
-  scientificName    String?
-  cropGroup         String?
-  growingConditions String?
-  regions           String[]
-  deletedAt         DateTime?
-  createdAt         DateTime       @default(now())
-  updatedAt         DateTime       @updatedAt
-  synonyms          CropSynonym[]
+  id             String            @id
+  scientificName String?
+  cropGroup      String?
+  tempC          String?
+  humidity       String?
+  soil           String?
+  ph             String?
+  irrigation     String?
+  regions        String[]
+  status         KbStatus          @default(VERIFIED)
+  qualityScore   Int               @default(70)
+  checksum       String?
+  version        Int               @default(1)
+  deletedAt      DateTime?
+  createdAt      DateTime          @default(now())
+  updatedAt      DateTime          @updatedAt
+  verifiedAt     DateTime?
+  verifiedBy     String?
+  translations   CropTranslation[]
+  synonyms       CropSynonym[]
 
   @@index([scientificName])
+  @@index([status])
+}
+
+model CropTranslation {
+  id     String @id @default(cuid())
+  cropId String
+  crop   Crop   @relation(fields: [cropId], references: [id], onDelete: Cascade)
+  lang   String
+  name   String
+  status KbStatus @default(VERIFIED)
+
+  @@unique([cropId, lang])
+  @@index([name])
 }
 
 model CropSynonym {
   id     String @id @default(cuid())
   cropId String
-  crop   Crop   @relation(fields: [cropId], references: [id])
+  crop   Crop   @relation(fields: [cropId], references: [id], onDelete: Cascade)
   lang   String
   name   String
 
-  @@unique([cropId, lang, name])
   @@index([name])
+  @@unique([cropId, lang, name])
 }
 
 model Disease {
-  id               String           @id
-  commonNameUz     String?
-  commonNameRu     String?
-  commonNameKk     String?
-  commonNameKy     String?
+  id               String               @id
   scientificName   String?
   eppoCode         String?
   pathogenType     String?
   pathogenName     String?
-  description      String?
   severity         String?
   quarantineStatus String?
+  status           KbStatus             @default(VERIFIED)
+  qualityScore     Int                  @default(70)
+  checksum         String?
+  version          Int                  @default(1)
+  sourceUrl        String?
+  organization     String?
   deletedAt        DateTime?
-  createdAt        DateTime         @default(now())
-  updatedAt        DateTime         @updatedAt
+  createdAt        DateTime             @default(now())
+  updatedAt        DateTime             @updatedAt
+  verifiedAt       DateTime?
+  verifiedBy       String?
+  translations     DiseaseTranslation[]
   synonyms         DiseaseSynonym[]
 
   @@unique([eppoCode])
   @@index([scientificName])
+  @@index([status])
+}
+
+model DiseaseTranslation {
+  id        String  @id @default(cuid())
+  diseaseId String
+  disease   Disease @relation(fields: [diseaseId], references: [id], onDelete: Cascade)
+  lang      String
+  name      String
+  status    KbStatus @default(VERIFIED)
+
+  @@unique([diseaseId, lang])
+  @@index([name])
 }
 
 model DiseaseSynonym {
   id        String  @id @default(cuid())
   diseaseId String
-  disease   Disease @relation(fields: [diseaseId], references: [id])
+  disease   Disease @relation(fields: [diseaseId], references: [id], onDelete: Cascade)
   lang      String
   name      String
 
@@ -117,24 +168,46 @@ model DiseaseSynonym {
 }
 
 model Pest {
-  id             String        @id
+  id             String            @id
   scientificName String?
   eppoCode       String?
   pestType       String?
-  lifecycle      String?
-  affectedCrops  String[]
+  taxonomy       String?
+  status         KbStatus          @default(VERIFIED)
+  qualityScore   Int               @default(70)
+  checksum       String?
+  version        Int               @default(1)
+  sourceUrl      String?
+  organization   String?
   deletedAt      DateTime?
-  createdAt      DateTime      @default(now())
-  updatedAt      DateTime      @updatedAt
+  createdAt      DateTime          @default(now())
+  updatedAt      DateTime          @updatedAt
+  verifiedAt     DateTime?
+  verifiedBy     String?
+  translations   PestTranslation[]
   synonyms       PestSynonym[]
 
   @@unique([eppoCode])
+  @@index([scientificName])
+  @@index([status])
+}
+
+model PestTranslation {
+  id     String @id @default(cuid())
+  pestId String
+  pest   Pest   @relation(fields: [pestId], references: [id], onDelete: Cascade)
+  lang   String
+  name   String
+  status KbStatus @default(VERIFIED)
+
+  @@unique([pestId, lang])
+  @@index([name])
 }
 
 model PestSynonym {
   id     String @id @default(cuid())
   pestId String
-  pest   Pest   @relation(fields: [pestId], references: [id])
+  pest   Pest   @relation(fields: [pestId], references: [id], onDelete: Cascade)
   lang   String
   name   String
 
@@ -142,101 +215,174 @@ model PestSynonym {
 }
 
 model Symptom {
-  id                String  @id @default(cuid())
-  diseaseId         String?
-  pestId            String?
-  cropId            String?
-  plantPart         String?
-  visualDescription String
-  color             String?
-  shape             String?
-  spreadPattern     String?
-  earlyStage        String?
-  lateStage         String?
-  deletedAt         DateTime?
-  createdAt         DateTime @default(now())
-  updatedAt         DateTime @updatedAt
+  id                    String    @id
+  cropId                String?
+  diseaseId             String?
+  pestId                String?
+  plantPart             String?
+  visualDescription     String
+  color                 String?
+  shape                 String?
+  texture               String?
+  pattern               String?
+  distribution          String?
+  earlyStage            String?
+  lateStage             String?
+  progression           String?
+  distinguishingFeatures String?
+  confusedWith          String[]
+  language              String    @default("en")
+  sourceUrl             String?
+  organization          String?
+  status                KbStatus  @default(VERIFIED)
+  qualityScore          Int       @default(70)
+  checksum              String?
+  version               Int       @default(1)
+  deletedAt             DateTime?
+  createdAt             DateTime  @default(now())
+  updatedAt             DateTime  @updatedAt
+
+  @@index([cropId, diseaseId])
+  @@index([status])
+  @@index([checksum])
 }
 
 model Treatment {
-  id               String   @id @default(cuid())
+  id               String    @id
   conditionId      String
+  conditionType    String
+  cropId           String?
   treatmentType    String
-  activeIngredient String?
-  biologicalMethod String?
-  mechanicalMethod String?
-  culturalMethod   String?
-  prevention       String?
-  applicationTiming String?
+  method           String
+  timing           String?
+  growthStage      String?
+  region           String?
+  greenhouse       Boolean?
+  restrictions     String?
   safetyNotes      String?
-  status           KbStatus @default(NEEDS_REVIEW)
+  sourceUrl        String?
+  organization     String?
+  status           KbStatus  @default(NEEDS_REVIEW)
+  qualityScore     Int       @default(60)
+  checksum         String?
+  version          Int       @default(1)
   deletedAt        DateTime?
-  createdAt        DateTime @default(now())
-  updatedAt        DateTime @updatedAt
+  createdAt        DateTime  @default(now())
+  updatedAt        DateTime  @updatedAt
+
+  @@index([conditionId, treatmentType])
+  @@index([status])
+}
+
+model Prevention {
+  id            String    @id
+  conditionId   String
+  conditionType String
+  cropId        String?
+  method        String
+  timing        String?
+  sourceUrl     String?
+  organization  String?
+  status        KbStatus  @default(VERIFIED)
+  qualityScore  Int       @default(75)
+  checksum      String?
+  version       Int       @default(1)
+  deletedAt     DateTime?
+  createdAt     DateTime  @default(now())
+  updatedAt     DateTime  @updatedAt
+
+  @@index([conditionId])
+  @@index([status])
 }
 
 model ActiveIngredient {
-  id        String    @id
-  name      String
-  type      String
-  status    KbStatus  @default(NEEDS_REVIEW)
-  deletedAt DateTime?
-  createdAt DateTime  @default(now())
-  updatedAt DateTime  @updatedAt
-  products  Product[]
+  id         String    @id
+  name       String
+  type       String
+  status     KbStatus  @default(NEEDS_REVIEW)
+  checksum   String?
+  version    Int       @default(1)
+  deletedAt  DateTime?
+  createdAt  DateTime  @default(now())
+  updatedAt  DateTime  @updatedAt
+  products   Product[]
+
+  @@index([name])
+  @@index([status])
 }
 
 model Product {
-  id                   String                @id @default(cuid())
+  id                   String                @id
   marketplaceProductId String?
   name                 String
   activeIngredientId   String?
   activeIngredient     ActiveIngredient?     @relation(fields: [activeIngredientId], references: [id])
   formulation          String?
+  manufacturer         String?
   labelUrl             String?
+  labelVerified        Boolean               @default(false)
   safetyInterval       String?
+  reentryInterval      String?
+  pollinatorWarning    String?
+  aquaticWarning       String?
   status               KbStatus              @default(NEEDS_REVIEW)
+  registrationStatus   RegistrationStatus    @default(UNKNOWN)
+  qualityScore         Int                   @default(40)
+  checksum             String?
+  version              Int                   @default(1)
   lastVerifiedAt       DateTime?
   deletedAt            DateTime?
   createdAt            DateTime              @default(now())
   updatedAt            DateTime              @updatedAt
   registrations        ProductRegistration[]
+
+  @@index([status, registrationStatus, labelVerified])
+  @@index([name])
+  @@index([checksum])
 }
 
 model ProductRegistration {
-  id                   String    @id @default(cuid())
-  productId            String
-  product              Product   @relation(fields: [productId], references: [id])
-  registrationCountry  String
-  registrationNumber   String
-  approvedCrops        String[]
-  approvedTargets      String[]
-  status               KbStatus  @default(NEEDS_REVIEW)
-  lastVerifiedAt       DateTime?
-  deletedAt            DateTime?
-  createdAt            DateTime  @default(now())
-  updatedAt            DateTime  @updatedAt
+  id                  String             @id @default(cuid())
+  productId           String
+  product             Product            @relation(fields: [productId], references: [id], onDelete: Cascade)
+  registrationCountry String
+  registrationNumber  String
+  approvedCrops       String[]
+  approvedTargets     String[]
+  expiresAt           DateTime?
+  status              KbStatus           @default(NEEDS_REVIEW)
+  registrationStatus  RegistrationStatus @default(UNKNOWN)
+  checksum            String?
+  lastVerifiedAt      DateTime?
+  deletedAt           DateTime?
+  createdAt           DateTime           @default(now())
+  updatedAt           DateTime           @updatedAt
 
   @@unique([registrationCountry, registrationNumber])
+  @@index([registrationNumber])
 }
 
 model KnowledgeDocument {
-  id               String           @id @default(cuid())
-  title            String
-  language         String
-  sourceId         String
-  source           Source           @relation(fields: [sourceId], references: [id])
-  content          String
-  checksum         String
-  status           KbStatus         @default(NEEDS_REVIEW)
-  version          Int              @default(1)
-  deletedAt        DateTime?
-  createdAt        DateTime         @default(now())
-  updatedAt        DateTime         @updatedAt
-  chunks           KnowledgeChunk[]
+  id        String             @id @default(cuid())
+  title     String
+  language  String
+  sourceId  String
+  source    Source             @relation(fields: [sourceId], references: [id])
+  content   String
+  checksum  String
+  status    KbStatus           @default(NEEDS_REVIEW)
+  version   Int                @default(1)
+  deletedAt DateTime?
+  createdAt DateTime           @default(now())
+  updatedAt DateTime           @updatedAt
+  chunks    KnowledgeChunkRow[]
+
+  @@index([checksum])
+  @@index([status])
 }
 
-model KnowledgeChunk {
+/// DB table for RAG chunks (named to avoid clash with TS KnowledgeChunk type)
+model KnowledgeChunkRow {
   id               String             @id
   documentId       String?
   document         KnowledgeDocument? @relation(fields: [documentId], references: [id])
@@ -259,26 +405,19 @@ model KnowledgeChunk {
   status           KbStatus           @default(NEEDS_REVIEW)
   version          Int                @default(1)
   checksum         String
+  /// Stored as float array JSON until pgvector column enabled in raw SQL
+  embeddingJson    Json?
   deletedAt        DateTime?
   createdAt        DateTime           @default(now())
   updatedAt        DateTime           @updatedAt
-  embedding        Embedding?
+  verifiedAt       DateTime?
+  embeddingJobs    EmbeddingJob[]
 
   @@index([entityType, entityId])
   @@index([status, language])
   @@index([checksum])
-}
-
-model Embedding {
-  id        String         @id @default(cuid())
-  chunkId   String         @unique
-  chunk     KnowledgeChunk @relation(fields: [chunkId], references: [id])
-  model     String
-  // vector Unsupported("vector") — enable after CREATE EXTENSION vector
-  dims      Int
-  checksum  String
-  createdAt DateTime       @default(now())
-  updatedAt DateTime       @updatedAt
+  @@index([qualityScore])
+  @@index([sourceId])
 }
 
 model ImageReference {
@@ -301,61 +440,94 @@ model ImageReference {
 }
 
 model ImportJob {
-  id             String        @id @default(cuid())
+  id             String          @id @default(cuid())
   kind           String
   status         String
   progressJson   Json
-  idempotencyKey String
-  attempts       Int           @default(0)
+  idempotencyKey String          @unique
+  attempts       Int             @default(0)
   lastError      String?
-  createdAt      DateTime      @default(now())
-  updatedAt      DateTime      @updatedAt
+  checkpoint     String?
+  createdAt      DateTime        @default(now())
+  updatedAt      DateTime        @updatedAt
+  items          ImportJobItem[]
   errors         ImportError[]
+}
 
-  @@unique([idempotencyKey])
+model ImportJobItem {
+  id         String    @id @default(cuid())
+  jobId      String
+  job        ImportJob @relation(fields: [jobId], references: [id], onDelete: Cascade)
+  externalId String
+  url        String?
+  status     String
+  checksum   String?
+  createdAt  DateTime  @default(now())
+  updatedAt  DateTime  @updatedAt
+
+  @@unique([jobId, externalId])
 }
 
 model ImportError {
-  id        String    @id @default(cuid())
-  jobId     String
-  job       ImportJob @relation(fields: [jobId], references: [id])
+  id         String    @id @default(cuid())
+  jobId      String
+  job        ImportJob @relation(fields: [jobId], references: [id], onDelete: Cascade)
   externalId String?
-  url       String?
-  error     String
-  createdAt DateTime  @default(now())
+  url        String?
+  error      String
+  createdAt  DateTime  @default(now())
 }
 
 model DuplicateCandidate {
-  id           String   @id @default(cuid())
-  leftEntityId String
+  id            String   @id @default(cuid())
+  leftEntityId  String
   rightEntityId String
-  confidence   Float
-  status       String   @default("pending")
-  createdAt    DateTime @default(now())
+  confidence    Float
+  status        String   @default("pending")
+  createdAt     DateTime @default(now())
+
+  @@index([status])
 }
 
 model ConflictRecord {
-  id                   String   @id
+  id                   String     @id
   entityType           EntityType
   canonicalEntityId    String
   conflictingEntityIds String[]
   reason               String
   fields               String[]
-  status               String   @default("pending")
+  status               String     @default("pending")
   sources              String[]
-  createdAt            DateTime @default(now())
-  updatedAt            DateTime @updatedAt
+  createdAt            DateTime   @default(now())
+  updatedAt            DateTime   @updatedAt
+
+  @@index([status])
 }
 
 model VerificationTask {
-  id        String   @id @default(cuid())
+  id         String     @id @default(cuid())
   entityType EntityType
-  entityId  String
-  status    KbStatus @default(NEEDS_REVIEW)
-  assignee  String?
-  notes     String?
-  createdAt DateTime @default(now())
-  updatedAt DateTime @updatedAt
+  entityId   String
+  status     KbStatus   @default(NEEDS_REVIEW)
+  assignee   String?
+  notes      String?
+  createdAt  DateTime   @default(now())
+  updatedAt  DateTime   @updatedAt
+
+  @@index([status, entityType])
+}
+
+model EmbeddingJob {
+  id        String            @id @default(cuid())
+  chunkId   String
+  chunk     KnowledgeChunkRow @relation(fields: [chunkId], references: [id], onDelete: Cascade)
+  model     String
+  status    String            @default("pending")
+  error     String?
+  createdAt DateTime          @default(now())
+  updatedAt DateTime          @updatedAt
+
+  @@index([status])
 }
 
 model AdminAuditLog {
