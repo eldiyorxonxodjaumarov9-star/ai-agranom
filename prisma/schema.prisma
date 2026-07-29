@@ -1,5 +1,6 @@
-// Phase 1 draft schema for future Postgres + pgvector (Phase 2+).
-// Phase 1 runtime uses data/kb/*.json — set DATABASE_URL later to migrate.
+// Production Prisma schema for Agro Olam KB (activate with DATABASE_URL).
+// Runtime still uses committed corpus + file/memory store until DATABASE_URL is set.
+// Apply: npx prisma migrate deploy (requires postgres + CREATE EXTENSION vector)
 
 generator client {
   provider        = "prisma-client-js"
@@ -9,7 +10,7 @@ generator client {
 datasource db {
   provider   = "postgresql"
   url        = env("DATABASE_URL")
-  extensions = [pgvector(map: "vector")]
+  extensions = [pgvector(map: "vector"), pg_trgm]
 }
 
 enum KbStatus {
@@ -19,6 +20,8 @@ enum KbStatus {
   VERIFIED
   REJECTED
   ARCHIVED
+  AI_TRANSLATED
+  VERIFIED_TRANSLATION
 }
 
 enum EntityType {
@@ -35,7 +38,7 @@ enum EntityType {
 }
 
 model Source {
-  id               String           @id
+  id               String            @id
   title            String
   organization     String
   url              String
@@ -45,11 +48,198 @@ model Source {
   reliabilityScore Float
   checksum         String?
   registryId       String?
+  deletedAt        DateTime?
+  createdAt        DateTime          @default(now())
+  updatedAt        DateTime          @updatedAt
+  chunks           KnowledgeChunk[]
+  documents        KnowledgeDocument[]
+}
+
+model Crop {
+  id                String         @id
+  commonNameUz      String?
+  commonNameRu      String?
+  commonNameKk      String?
+  commonNameKy      String?
+  scientificName    String?
+  cropGroup         String?
+  growingConditions String?
+  regions           String[]
+  deletedAt         DateTime?
+  createdAt         DateTime       @default(now())
+  updatedAt         DateTime       @updatedAt
+  synonyms          CropSynonym[]
+
+  @@index([scientificName])
+}
+
+model CropSynonym {
+  id     String @id @default(cuid())
+  cropId String
+  crop   Crop   @relation(fields: [cropId], references: [id])
+  lang   String
+  name   String
+
+  @@unique([cropId, lang, name])
+  @@index([name])
+}
+
+model Disease {
+  id               String           @id
+  commonNameUz     String?
+  commonNameRu     String?
+  commonNameKk     String?
+  commonNameKy     String?
+  scientificName   String?
+  eppoCode         String?
+  pathogenType     String?
+  pathogenName     String?
+  description      String?
+  severity         String?
+  quarantineStatus String?
+  deletedAt        DateTime?
+  createdAt        DateTime         @default(now())
+  updatedAt        DateTime         @updatedAt
+  synonyms         DiseaseSynonym[]
+
+  @@unique([eppoCode])
+  @@index([scientificName])
+}
+
+model DiseaseSynonym {
+  id        String  @id @default(cuid())
+  diseaseId String
+  disease   Disease @relation(fields: [diseaseId], references: [id])
+  lang      String
+  name      String
+
+  @@index([name])
+}
+
+model Pest {
+  id             String        @id
+  scientificName String?
+  eppoCode       String?
+  pestType       String?
+  lifecycle      String?
+  affectedCrops  String[]
+  deletedAt      DateTime?
+  createdAt      DateTime      @default(now())
+  updatedAt      DateTime      @updatedAt
+  synonyms       PestSynonym[]
+
+  @@unique([eppoCode])
+}
+
+model PestSynonym {
+  id     String @id @default(cuid())
+  pestId String
+  pest   Pest   @relation(fields: [pestId], references: [id])
+  lang   String
+  name   String
+
+  @@index([name])
+}
+
+model Symptom {
+  id                String  @id @default(cuid())
+  diseaseId         String?
+  pestId            String?
+  cropId            String?
+  plantPart         String?
+  visualDescription String
+  color             String?
+  shape             String?
+  spreadPattern     String?
+  earlyStage        String?
+  lateStage         String?
+  deletedAt         DateTime?
+  createdAt         DateTime @default(now())
+  updatedAt         DateTime @updatedAt
+}
+
+model Treatment {
+  id               String   @id @default(cuid())
+  conditionId      String
+  treatmentType    String
+  activeIngredient String?
+  biologicalMethod String?
+  mechanicalMethod String?
+  culturalMethod   String?
+  prevention       String?
+  applicationTiming String?
+  safetyNotes      String?
+  status           KbStatus @default(NEEDS_REVIEW)
+  deletedAt        DateTime?
+  createdAt        DateTime @default(now())
+  updatedAt        DateTime @updatedAt
+}
+
+model ActiveIngredient {
+  id        String    @id
+  name      String
+  type      String
+  status    KbStatus  @default(NEEDS_REVIEW)
+  deletedAt DateTime?
+  createdAt DateTime  @default(now())
+  updatedAt DateTime  @updatedAt
+  products  Product[]
+}
+
+model Product {
+  id                   String                @id @default(cuid())
+  marketplaceProductId String?
+  name                 String
+  activeIngredientId   String?
+  activeIngredient     ActiveIngredient?     @relation(fields: [activeIngredientId], references: [id])
+  formulation          String?
+  labelUrl             String?
+  safetyInterval       String?
+  status               KbStatus              @default(NEEDS_REVIEW)
+  lastVerifiedAt       DateTime?
+  deletedAt            DateTime?
+  createdAt            DateTime              @default(now())
+  updatedAt            DateTime              @updatedAt
+  registrations        ProductRegistration[]
+}
+
+model ProductRegistration {
+  id                   String    @id @default(cuid())
+  productId            String
+  product              Product   @relation(fields: [productId], references: [id])
+  registrationCountry  String
+  registrationNumber   String
+  approvedCrops        String[]
+  approvedTargets      String[]
+  status               KbStatus  @default(NEEDS_REVIEW)
+  lastVerifiedAt       DateTime?
+  deletedAt            DateTime?
+  createdAt            DateTime  @default(now())
+  updatedAt            DateTime  @updatedAt
+
+  @@unique([registrationCountry, registrationNumber])
+}
+
+model KnowledgeDocument {
+  id               String           @id @default(cuid())
+  title            String
+  language         String
+  sourceId         String
+  source           Source           @relation(fields: [sourceId], references: [id])
+  content          String
+  checksum         String
+  status           KbStatus         @default(NEEDS_REVIEW)
+  version          Int              @default(1)
+  deletedAt        DateTime?
+  createdAt        DateTime         @default(now())
+  updatedAt        DateTime         @updatedAt
   chunks           KnowledgeChunk[]
 }
 
 model KnowledgeChunk {
-  id               String     @id
+  id               String             @id
+  documentId       String?
+  document         KnowledgeDocument? @relation(fields: [documentId], references: [id])
   entityType       EntityType
   entityId         String
   language         String
@@ -59,55 +249,123 @@ model KnowledgeChunk {
   cropIds          String[]
   plantParts       String[]
   regions          String[]
-  // embedding Unsupported("vector") — enable with pgvector migration in Phase 2
-  embeddingJson    Json?
   sourceId         String
-  source           Source     @relation(fields: [sourceId], references: [id])
+  source           Source             @relation(fields: [sourceId], references: [id])
   sourceUrl        String
   sourceTitle      String
   organization     String
   reliabilityScore Float
-  status           KbStatus   @default(NEEDS_REVIEW)
-  version          Int        @default(1)
-  updatedAt        DateTime   @updatedAt
+  qualityScore     Int                @default(50)
+  status           KbStatus           @default(NEEDS_REVIEW)
+  version          Int                @default(1)
   checksum         String
+  deletedAt        DateTime?
+  createdAt        DateTime           @default(now())
+  updatedAt        DateTime           @updatedAt
+  embedding        Embedding?
 
   @@index([entityType, entityId])
   @@index([status, language])
+  @@index([checksum])
 }
 
-model Crop {
-  id                String   @id @default(cuid())
-  commonNameUz      String?
-  commonNameRu      String?
-  commonNameKk      String?
-  commonNameKy      String?
-  scientificName    String?
-  synonyms          String[]
-  cropGroup         String?
-  growingConditions String?
-  regions           String[]
+model Embedding {
+  id        String         @id @default(cuid())
+  chunkId   String         @unique
+  chunk     KnowledgeChunk @relation(fields: [chunkId], references: [id])
+  model     String
+  // vector Unsupported("vector") — enable after CREATE EXTENSION vector
+  dims      Int
+  checksum  String
+  createdAt DateTime       @default(now())
+  updatedAt DateTime       @updatedAt
 }
 
-model Disease {
-  id               String   @id @default(cuid())
-  commonNameUz     String?
-  commonNameRu     String?
-  commonNameKk     String?
-  commonNameKy     String?
-  scientificName   String?
-  pathogenType     String?
-  pathogenName     String?
-  description      String?
-  severity         String?
-  quarantineStatus String?
+model ImageReference {
+  id             String    @id @default(cuid())
+  conditionId    String?
+  cropId         String?
+  plantPart      String?
+  imageUrl       String
+  license        String
+  attribution    String?
+  sourceId       String?
+  verified       Boolean   @default(false)
+  imageHash      String?
+  visualFeatures String?
+  deletedAt      DateTime?
+  createdAt      DateTime  @default(now())
+  updatedAt      DateTime  @updatedAt
+
+  @@unique([imageHash])
 }
 
-model Pest {
-  id             String   @id @default(cuid())
-  localizedNames Json?
-  scientificName String?
-  pestType       String?
-  lifecycle      String?
-  affectedCrops  String[]
+model ImportJob {
+  id             String        @id @default(cuid())
+  kind           String
+  status         String
+  progressJson   Json
+  idempotencyKey String
+  attempts       Int           @default(0)
+  lastError      String?
+  createdAt      DateTime      @default(now())
+  updatedAt      DateTime      @updatedAt
+  errors         ImportError[]
+
+  @@unique([idempotencyKey])
+}
+
+model ImportError {
+  id        String    @id @default(cuid())
+  jobId     String
+  job       ImportJob @relation(fields: [jobId], references: [id])
+  externalId String?
+  url       String?
+  error     String
+  createdAt DateTime  @default(now())
+}
+
+model DuplicateCandidate {
+  id           String   @id @default(cuid())
+  leftEntityId String
+  rightEntityId String
+  confidence   Float
+  status       String   @default("pending")
+  createdAt    DateTime @default(now())
+}
+
+model ConflictRecord {
+  id                   String   @id
+  entityType           EntityType
+  canonicalEntityId    String
+  conflictingEntityIds String[]
+  reason               String
+  fields               String[]
+  status               String   @default("pending")
+  sources              String[]
+  createdAt            DateTime @default(now())
+  updatedAt            DateTime @updatedAt
+}
+
+model VerificationTask {
+  id        String   @id @default(cuid())
+  entityType EntityType
+  entityId  String
+  status    KbStatus @default(NEEDS_REVIEW)
+  assignee  String?
+  notes     String?
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+}
+
+model AdminAuditLog {
+  id         String   @id @default(cuid())
+  actorHash  String
+  action     String
+  entityType String?
+  entityId   String?
+  detail     Json?
+  createdAt  DateTime @default(now())
+
+  @@index([createdAt])
 }

@@ -86,7 +86,10 @@ export async function retrieveKnowledge(
       vec = cosineSimilarity(queryVec, embeddings[chunk.id]);
     }
 
-    let score = kw * 0.35 + vec * 0.55 + chunk.reliabilityScore * 0.1;
+    let score = kw * 0.3 + vec * 0.5 + chunk.reliabilityScore * 0.1;
+    if (typeof chunk.qualityScore === "number") {
+      score += (chunk.qualityScore / 100) * 0.1;
+    }
 
     if (options?.language && chunk.language === options.language) score += 0.05;
     if (
@@ -96,6 +99,11 @@ export async function retrieveKnowledge(
       )
     ) {
       score += 0.08;
+    }
+
+    // Exact scientific-name boost
+    if (/[A-Z][a-z]+ [a-z]+/.test(query) && chunk.keywords.some((k) => query.toLowerCase().includes(k.toLowerCase()))) {
+      score += 0.06;
     }
 
     // Soft prefer same-script hits for Cyrillic queries
@@ -112,9 +120,14 @@ export async function retrieveKnowledge(
     };
   });
 
+  // Rerank: reliability + quality, keep keyword/vector winners
   const top = scored
     .filter((c) => c.score > 0.12 || (c.keywordScore ?? 0) > 0)
-    .sort((a, b) => b.score - a.score)
+    .sort((a, b) => {
+      const qa = (a.qualityScore ?? 70) / 100;
+      const qb = (b.qualityScore ?? 70) / 100;
+      return b.score * 0.85 + qb * 0.15 - (a.score * 0.85 + qa * 0.15);
+    })
     .slice(0, limit);
 
   const sourceMap = new Map<string, RagCitation>();

@@ -75,10 +75,13 @@ export interface KnowledgeChunk {
   sourceTitle: string;
   organization: string;
   reliabilityScore: number;
+  /** 0–100 composite quality for RAG gating */
+  qualityScore?: number;
   status: KbStatus;
   version: number;
   updatedAt: string;
   checksum: string;
+  deletedAt?: string | null;
 }
 
 export interface RetrievedChunk extends KnowledgeChunk {

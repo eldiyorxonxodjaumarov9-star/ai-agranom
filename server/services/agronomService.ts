@@ -1,6 +1,7 @@
 import type { ChatCompletionMessageParam } from "openai/resources/chat/completions";
 import { buildAgronomPrompt } from "../prompts/system";
-import { retrieveContext } from "../rag/provider";
+import { retrieveContextWithMeta } from "@/server/kb/provider";
+import type { RagRetrievalResult } from "@/server/kb/types";
 import type { SupportedLanguage } from "@/lib/agronom/api-types";
 import {
   getOpenAIClient,
@@ -20,6 +21,11 @@ export interface AgronomRequest {
   images?: string[];
   cropMemory?: string;
   weather?: string;
+}
+
+export interface AgronomAnswerResult {
+  answer: string;
+  rag: RagRetrievalResult;
 }
 
 function buildMessages(
@@ -68,14 +74,17 @@ function buildMessages(
 
 export async function generateAgronomAnswer(
   request: AgronomRequest
-): Promise<string> {
+): Promise<AgronomAnswerResult> {
   const client = getOpenAIClient();
   const language = request.language ?? "uz";
-  const ragContext = await retrieveContext(request.message);
+  const { contextText, result: rag } = await retrieveContextWithMeta(
+    request.message
+  );
+
   const messages = buildMessages(
     request.message,
     request.history ?? [],
-    ragContext,
+    contextText,
     language,
     {
       cropMemory: request.cropMemory,
@@ -93,19 +102,22 @@ export async function generateAgronomAnswer(
 
   const answer = completion.choices[0]?.message?.content?.trim();
   if (!answer) throw new Error("Empty response from OpenAI");
-  return answer;
+  return { answer, rag };
 }
 
 export async function* streamAgronomAnswer(
   request: AgronomRequest
-): AsyncGenerator<string, void, unknown> {
+): AsyncGenerator<string, AgronomAnswerResult, unknown> {
   const client = getOpenAIClient();
   const language = request.language ?? "uz";
-  const ragContext = await retrieveContext(request.message);
+  const { contextText, result: rag } = await retrieveContextWithMeta(
+    request.message
+  );
+
   const messages = buildMessages(
     request.message,
     request.history ?? [],
-    ragContext,
+    contextText,
     language,
     {
       cropMemory: request.cropMemory,
@@ -122,8 +134,13 @@ export async function* streamAgronomAnswer(
     stream: true,
   });
 
-  for await (const chunk of stream) {
-    const content = chunk.choices[0]?.delta?.content;
-    if (content) yield content;
+  let full = "";
+  for await (const part of stream) {
+    const text = part.choices[0]?.delta?.content || "";
+    if (text) {
+      full += text;
+      yield text;
+    }
   }
+  return { answer: full, rag };
 }

@@ -178,9 +178,20 @@ export function deduplicateChunks(chunks: KnowledgeChunk[]): {
   }
 
   const canonical = Array.from(byKey.values());
+  // Idempotent conflict merge by id
+  const prev = loadConflicts();
+  const byConflictId = new Map(prev.map((c) => [c.id, c]));
+  for (const c of conflicts) {
+    if (!byConflictId.has(c.id)) byConflictId.set(c.id, c);
+  }
+  const mergedConflicts = Array.from(byConflictId.values());
   saveCanonicalEntities(canonical);
-  saveConflicts(conflicts);
-  return { canonical, duplicatesMerged, conflicts };
+  saveConflicts(mergedConflicts);
+  return {
+    canonical,
+    duplicatesMerged,
+    conflicts: mergedConflicts.filter((c) => c.status === "pending"),
+  };
 }
 
 export function getPendingConflicts(): ConflictRecord[] {

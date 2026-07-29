@@ -10,15 +10,17 @@
     "lint": "next lint",
     "typecheck": "tsc --noEmit",
     "start:api": "tsx server/index.ts",
-    "test": "npm run test:lang && npm run test:kb && npm run test:kb-phase2 && npm run test:api-compat",
+    "test": "npm run test:lang && npm run test:kb && npm run test:kb-phase2 && npm run test:kb-audit && npm run test:api-compat",
     "test:lang": "tsx scripts/test-language-detection.ts",
     "test:kb": "tsx scripts/test-kb-rag.ts",
     "test:kb-phase2": "tsx scripts/test-kb-phase2.ts",
+    "test:kb-audit": "tsx scripts/test-kb-audit-fixes.ts",
     "test:api-compat": "tsx scripts/test-api-compat.ts",
     "test:smoke": "node scripts/production-api-smoke.js",
     "kb:ingest": "tsx scripts/kb-ingest.ts",
     "kb:stats": "tsx scripts/kb-ingest.ts --seed-stats",
-    "kb:sync": "tsx scripts/kb-sync.ts"
+    "kb:sync": "tsx scripts/kb-sync.ts",
+    "kb:corpus-stats": "tsx -e \"const {corpusStats}=require('./server/kb/corpus/build'); console.log(JSON.stringify(corpusStats(),null,2))\""
   },
   "dependencies": {
     "dotenv": "^16.4.0",

@@ -2,6 +2,7 @@ import type { RagDocument, RagProvider } from "./types";
 import {
   KnowledgeRagProvider,
   retrieveContextWithMeta,
+  runWithRagContextAsync,
 } from "@/server/kb/provider";
 
 export type { RagDocument, RagProvider };
@@ -15,11 +16,24 @@ export function setRagProvider(provider: RagProvider): void {
 
 export async function retrieveContext(query: string): Promise<string> {
   if (ragProvider instanceof KnowledgeRagProvider) {
-    const { contextText } = await retrieveContextWithMeta(query);
+    const { contextText, result } = await retrieveContextWithMeta(query);
+    // Bind result for subsequent awaits in this request (chat enrich).
+    await runWithRagContextAsync(result, async () => undefined);
     return contextText;
   }
   const docs = await ragProvider.search(query);
   return docs.map((d) => `[${d.category}] ${d.title}:\n${d.content}`).join("\n\n");
+}
+
+/**
+ * Retrieve and keep ALS context for the duration of `fn` (fixes C4 race).
+ */
+export async function withRagContext<T>(
+  query: string,
+  fn: (contextText: string) => Promise<T>
+): Promise<T> {
+  const { contextText, result } = await retrieveContextWithMeta(query);
+  return runWithRagContextAsync(result, () => fn(contextText));
 }
 
 export class StaticRagProvider implements RagProvider {

@@ -14,7 +14,7 @@ import type {
   ChatApiSuccessResponse,
 } from "@/lib/agronom/api-types";
 import { resolveResponseLanguage } from "@/lib/agronom/language";
-import { getLastRagResult } from "@/server/kb/provider";
+import type { RagRetrievalResult } from "@/server/kb/types";
 import { stripAgentMeta } from "@/lib/platform/agent-meta";
 
 const AI_ERROR: ChatApiErrorResponse = {
@@ -68,9 +68,9 @@ function toRequest(input: ProcessChatInput): AgronomRequest {
 
 function enrichResponse(
   answer: string,
-  language: string
+  language: string,
+  rag: RagRetrievalResult | null
 ): ChatApiSuccessResponse {
-  const rag = getLastRagResult();
   const { meta } = stripAgentMeta(answer);
   const sources =
     rag?.sources?.map((s) => ({
@@ -99,7 +99,7 @@ export async function processChat(
   input: ProcessChatInput
 ): Promise<ChatApiSuccessResponse | ChatApiErrorResponse> {
   try {
-    const answer = await generateAgronomAnswer(toRequest(input));
+    const { answer, rag } = await generateAgronomAnswer(toRequest(input));
 
     if (input.sessionId) {
       appendSessionHistory(input.sessionId, input.message, answer);
@@ -107,7 +107,8 @@ export async function processChat(
 
     return enrichResponse(
       answer,
-      responseLanguage(input.language, input.message)
+      responseLanguage(input.language, input.message),
+      rag
     );
   } catch (error) {
     console.error("[agronom/chat] Error:", error);
@@ -120,9 +121,12 @@ export async function* processChatStream(
 ): AsyncGenerator<string, string, unknown> {
   let fullAnswer = "";
 
-  for await (const chunk of streamAgronomAnswer(toRequest(input))) {
-    fullAnswer += chunk;
-    yield chunk;
+  const gen = streamAgronomAnswer(toRequest(input));
+  let next = await gen.next();
+  while (!next.done) {
+    fullAnswer += next.value;
+    yield next.value;
+    next = await gen.next();
   }
 
   if (input.sessionId && fullAnswer) {

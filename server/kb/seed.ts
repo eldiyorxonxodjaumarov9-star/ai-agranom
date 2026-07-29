@@ -1,5 +1,6 @@
 import { createHash } from "crypto";
 import type { KnowledgeChunk, SourceRecord } from "./types";
+import { buildCorpusChunks } from "./corpus/build";
 
 function checksum(content: string): string {
   return createHash("sha256").update(content).digest("hex").slice(0, 16);
@@ -64,7 +65,7 @@ export const SEED_SOURCES: SourceRecord[] = [
 ];
 
 /** Curated VERIFIED seed — Phase 1 bootstrap (not scraped). */
-export const SEED_CHUNKS: KnowledgeChunk[] = [
+const LEGACY_SEED_CHUNKS: KnowledgeChunk[] = [
   chunk({
     id: "chunk-tomato-late-blight",
     entityType: "disease",
@@ -236,4 +237,14 @@ export const SEED_CHUNKS: KnowledgeChunk[] = [
     organization: "Agro Olam",
     reliabilityScore: 0.9,
   }),
+];
+
+/** Phase 1 hand seeds + Phase 2.2 curated multilingual corpus (committed in code for Vercel durability). */
+export const SEED_CHUNKS: KnowledgeChunk[] = [
+  ...LEGACY_SEED_CHUNKS.map((c) => ({
+    ...c,
+    qualityScore: c.qualityScore ?? Math.round(c.reliabilityScore * 100),
+    status: (c.status ?? "VERIFIED") as KnowledgeChunk["status"],
+  })),
+  ...buildCorpusChunks(),
 ];

@@ -10,6 +10,7 @@ export {
   upsertChunks,
   contentChecksum,
   resetKbMemory,
+  invalidateEmbeddings,
 } from "./store";
 export { retrieveKnowledge } from "./retrieve";
 export {
@@ -22,4 +23,9 @@ export type { IngestChunkInput } from "./ingest";
 export { getAllAdapters, getAdapterById } from "./adapters";
 export { runSyncJob, CRON_SCHEDULE, adaptersForKind } from "./sync/runner";
 export { deduplicateChunks, getPendingConflicts } from "./dedup";
+export { buildCorpusChunks, corpusStats } from "./corpus/build";
+export { CROPS } from "./corpus/crops";
+export { DISEASES } from "./corpus/diseases";
+export { PESTS } from "./corpus/pests";
+export { enqueueImport, getImportQueue } from "./sync/queue";
 export type * from "./types";

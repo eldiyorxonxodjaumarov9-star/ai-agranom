@@ -133,6 +133,27 @@ export default function AdminKbPage() {
           </select>
           <button
             type="button"
+            onClick={async () => {
+              if (!token) return;
+              setLoading(true);
+              try {
+                const res = await fetch("/api/admin/kb/actions", { headers });
+                const json = await res.json();
+                if (!res.ok) throw new Error(json.error || "Xato");
+                setData(json);
+              } catch (e) {
+                setError(e instanceof Error ? e.message : "Xato");
+              } finally {
+                setLoading(false);
+              }
+            }}
+            className="btn-ghost border border-line"
+            disabled={loading || !token}
+          >
+            Dashboard
+          </button>
+          <button
+            type="button"
             onClick={runSync}
             className="btn-ghost border border-line"
             disabled={loading || !token}

@@ -112,6 +112,20 @@ export function saveEmbeddings(map: EmbeddingMap): void {
   writeJson(EMBEDDINGS_FILE, map);
 }
 
+/** Drop cached vectors for chunk ids (content changed). */
+export function invalidateEmbeddings(chunkIds: string[]): void {
+  if (chunkIds.length === 0) return;
+  const map = loadEmbeddings();
+  let changed = false;
+  for (const id of chunkIds) {
+    if (map[id]) {
+      delete map[id];
+      changed = true;
+    }
+  }
+  if (changed) saveEmbeddings(map);
+}
+
 export function upsertChunks(incoming: KnowledgeChunk[]): {
   added: number;
   updated: number;
@@ -122,6 +136,7 @@ export function upsertChunks(incoming: KnowledgeChunk[]): {
   let added = 0;
   let updated = 0;
   let skipped = 0;
+  const invalidated: string[] = [];
 
   for (const chunk of incoming) {
     const prev = byId.get(chunk.id);
@@ -139,15 +154,22 @@ export function upsertChunks(incoming: KnowledgeChunk[]): {
       version: prev.version + 1,
       updatedAt: new Date().toISOString(),
     });
+    invalidated.push(chunk.id);
     updated++;
   }
 
+  invalidateEmbeddings(invalidated);
   saveChunks(Array.from(byId.values()));
   return { added, updated, skipped };
 }
 
 export function getVerifiedChunks(): KnowledgeChunk[] {
-  return loadChunks().filter((c) => c.status === "VERIFIED");
+  return loadChunks().filter(
+    (c) =>
+      c.status === "VERIFIED" &&
+      !c.deletedAt &&
+      (c.qualityScore == null || c.qualityScore >= 60)
+  );
 }
 
 /** Test helper: clear in-memory overlay */

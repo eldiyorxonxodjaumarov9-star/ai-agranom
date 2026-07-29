@@ -21,6 +21,8 @@ export interface IngestChunkInput {
   organization?: string;
   reliabilityScore?: number;
   status?: KbStatus;
+  /** Only trusted admin seed paths may set true */
+  allowVerify?: boolean;
 }
 
 function idFrom(input: IngestChunkInput): string {
@@ -37,12 +39,14 @@ export function normalizeIngestItem(input: IngestChunkInput): KnowledgeChunk | n
   if (!input.title?.trim() || !input.content?.trim()) return null;
 
   const status: KbStatus = input.status ?? "NEEDS_REVIEW";
-  // Safety: treatment/product never auto-VERIFIED on import
-  const safeStatus =
-    (input.entityType === "treatment" || input.entityType === "product") &&
-    status === "VERIFIED"
-      ? "NEEDS_REVIEW"
-      : status;
+  // Safety: never auto-VERIFIED for treatment/product; other types need explicit allowVerify
+  const allowVerify = (input as IngestChunkInput & { allowVerify?: boolean }).allowVerify === true;
+  let safeStatus: KbStatus = status;
+  if (input.entityType === "treatment" || input.entityType === "product") {
+    if (status === "VERIFIED") safeStatus = "NEEDS_REVIEW";
+  } else if (status === "VERIFIED" && !allowVerify) {
+    safeStatus = "NEEDS_REVIEW";
+  }
 
   return {
     id: idFrom(input),
