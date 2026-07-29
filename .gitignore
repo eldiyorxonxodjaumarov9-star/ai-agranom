@@ -49,3 +49,8 @@ Desktop.ini
 
 .vercel
 
+# Knowledge Base runtime store (seeds live in server/kb/seed.ts)
+/data/kb/chunks.json
+/data/kb/sources.json
+/data/kb/embeddings.json
+

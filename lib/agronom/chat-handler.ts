@@ -14,6 +14,8 @@ import type {
   ChatApiSuccessResponse,
 } from "@/lib/agronom/api-types";
 import { resolveResponseLanguage } from "@/lib/agronom/language";
+import { getLastRagResult } from "@/server/kb/provider";
+import { stripAgentMeta } from "@/lib/platform/agent-meta";
 
 const AI_ERROR: ChatApiErrorResponse = {
   success: false,
@@ -27,6 +29,10 @@ export interface ProcessChatInput {
   images?: string[];
   cropMemory?: string;
   weather?: string;
+  region?: string;
+  crop?: string;
+  greenhouse?: boolean;
+  imageIds?: string[];
 }
 
 /** API response til maydoni: auto bo‘lsa detect qilinadi (uz/ru/kk/ky/en) */
@@ -39,13 +45,53 @@ export function responseLanguage(
 
 function toRequest(input: ProcessChatInput): AgronomRequest {
   const history = input.sessionId ? getSessionHistory(input.sessionId) : [];
+  const extras: string[] = [];
+  if (input.region) extras.push(`Region: ${input.region}`);
+  if (input.crop) extras.push(`Crop hint: ${input.crop}`);
+  if (input.greenhouse !== undefined) {
+    extras.push(`Greenhouse: ${input.greenhouse ? "yes" : "no"}`);
+  }
+  const message =
+    extras.length > 0
+      ? `${input.message}\n\n(${extras.join("; ")})`
+      : input.message;
+
   return {
-    message: input.message,
+    message,
     history,
     language: input.language,
     images: input.images,
     cropMemory: input.cropMemory,
     weather: input.weather,
+  };
+}
+
+function enrichResponse(
+  answer: string,
+  language: string
+): ChatApiSuccessResponse {
+  const rag = getLastRagResult();
+  const { meta } = stripAgentMeta(answer);
+  const sources =
+    rag?.sources?.map((s) => ({
+      organization: s.organization,
+      title: s.title,
+      url: s.url,
+    })) ?? meta?.sources;
+
+  const confidence = rag?.confidence;
+  const requiresExpertReview =
+    typeof confidence === "number" ? confidence < 0.45 : undefined;
+
+  return {
+    success: true,
+    answer,
+    language,
+    service: SERVICE_NAME,
+    ...(sources?.length ? { sources } : {}),
+    ...(typeof confidence === "number" ? { confidence } : {}),
+    ...(meta?.products?.length ? { products: meta.products } : {}),
+    ...(requiresExpertReview !== undefined ? { requiresExpertReview } : {}),
   };
 }
 
@@ -59,12 +105,10 @@ export async function processChat(
       appendSessionHistory(input.sessionId, input.message, answer);
     }
 
-    return {
-      success: true,
+    return enrichResponse(
       answer,
-      language: responseLanguage(input.language, input.message),
-      service: SERVICE_NAME,
-    };
+      responseLanguage(input.language, input.message)
+    );
   } catch (error) {
     console.error("[agronom/chat] Error:", error);
     return AI_ERROR;

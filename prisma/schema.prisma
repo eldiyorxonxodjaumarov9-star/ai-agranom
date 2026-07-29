@@ -1,0 +1,113 @@
+// Phase 1 draft schema for future Postgres + pgvector (Phase 2+).
+// Phase 1 runtime uses data/kb/*.json — set DATABASE_URL later to migrate.
+
+generator client {
+  provider        = "prisma-client-js"
+  previewFeatures = ["postgresqlExtensions"]
+}
+
+datasource db {
+  provider   = "postgresql"
+  url        = env("DATABASE_URL")
+  extensions = [pgvector(map: "vector")]
+}
+
+enum KbStatus {
+  DRAFT
+  AI_PARSED
+  NEEDS_REVIEW
+  VERIFIED
+  REJECTED
+  ARCHIVED
+}
+
+enum EntityType {
+  crop
+  disease
+  pest
+  symptom
+  treatment
+  product
+  nutrient
+  irrigation
+  soil
+  general
+}
+
+model Source {
+  id               String           @id
+  title            String
+  organization     String
+  url              String
+  publishedAt      DateTime?
+  accessedAt       DateTime
+  license          String
+  reliabilityScore Float
+  checksum         String?
+  registryId       String?
+  chunks           KnowledgeChunk[]
+}
+
+model KnowledgeChunk {
+  id               String     @id
+  entityType       EntityType
+  entityId         String
+  language         String
+  title            String
+  content          String
+  keywords         String[]
+  cropIds          String[]
+  plantParts       String[]
+  regions          String[]
+  // embedding Unsupported("vector") — enable with pgvector migration in Phase 2
+  embeddingJson    Json?
+  sourceId         String
+  source           Source     @relation(fields: [sourceId], references: [id])
+  sourceUrl        String
+  sourceTitle      String
+  organization     String
+  reliabilityScore Float
+  status           KbStatus   @default(NEEDS_REVIEW)
+  version          Int        @default(1)
+  updatedAt        DateTime   @updatedAt
+  checksum         String
+
+  @@index([entityType, entityId])
+  @@index([status, language])
+}
+
+model Crop {
+  id                String   @id @default(cuid())
+  commonNameUz      String?
+  commonNameRu      String?
+  commonNameKk      String?
+  commonNameKy      String?
+  scientificName    String?
+  synonyms          String[]
+  cropGroup         String?
+  growingConditions String?
+  regions           String[]
+}
+
+model Disease {
+  id               String   @id @default(cuid())
+  commonNameUz     String?
+  commonNameRu     String?
+  commonNameKk     String?
+  commonNameKy     String?
+  scientificName   String?
+  pathogenType     String?
+  pathogenName     String?
+  description      String?
+  severity         String?
+  quarantineStatus String?
+}
+
+model Pest {
+  id             String   @id @default(cuid())
+  localizedNames Json?
+  scientificName String?
+  pestType       String?
+  lifecycle      String?
+  affectedCrops  String[]
+}

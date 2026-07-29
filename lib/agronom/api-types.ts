@@ -10,6 +10,17 @@ export interface ChatApiRequest {
   images?: string[];
   cropMemory?: string;
   weather?: string;
+  /** Optional Phase 1+ fields (backward compatible) */
+  region?: string;
+  crop?: string;
+  imageIds?: string[];
+  greenhouse?: boolean;
+}
+
+export interface ChatApiSourceCitation {
+  organization: string;
+  title: string;
+  url: string;
 }
 
 export interface ChatApiSuccessResponse {
@@ -17,6 +28,11 @@ export interface ChatApiSuccessResponse {
   answer: string;
   language: string;
   service: typeof SERVICE_NAME;
+  /** Optional enrichment — older clients ignore these */
+  sources?: ChatApiSourceCitation[];
+  confidence?: number;
+  products?: string[];
+  requiresExpertReview?: boolean;
 }
 
 export interface ChatApiErrorResponse {

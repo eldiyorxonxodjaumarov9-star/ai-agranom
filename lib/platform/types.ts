@@ -85,6 +85,8 @@ export interface AgentMeta {
     label: string;
     advice: string;
   }[];
+  sources?: { organization: string; title: string; url: string }[];
+  confidence?: number;
 }
 
 export interface WeatherSnapshot {

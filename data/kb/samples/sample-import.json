@@ -1,0 +1,18 @@
+[
+  {
+    "entityType": "disease",
+    "entityId": "disease-alternaria-solani",
+    "language": "ru",
+    "title": "Альтернариоз томата (Alternaria solani)",
+    "content": "Альтернариоз (ранняя пятнистость): сухие коричневые пятна с концентрическими кольцами на листьях, чаще на старых листьях. В отличие от фитофтороза обычно меньше белого налёта и медленнее во влажную прохладу. Культурные меры: удаление поражённых листьев, проветривание, капельный полив. Фунгициды — только зарегистрированные по этикетке.",
+    "keywords": ["альтернариоз", "alternaria", "концентрические", "томат", "пятна"],
+    "cropIds": ["tomato"],
+    "plantParts": ["leaf"],
+    "sourceRegistryId": "eppo",
+    "sourceUrl": "https://gd.eppo.int",
+    "sourceTitle": "Alternaria solani (early blight) — verify in EPPO",
+    "organization": "EPPO",
+    "reliabilityScore": 0.9,
+    "status": "NEEDS_REVIEW"
+  }
+]

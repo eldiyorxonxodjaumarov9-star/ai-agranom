@@ -14,6 +14,11 @@ export type ValidatedChat = {
   images?: string[];
   cropMemory?: string;
   weather?: string;
+  region?: string;
+  crop?: string;
+  greenhouse?: boolean;
+  /** Phase 3 storage refs — accepted now for API compatibility */
+  imageIds?: string[];
 };
 
 export type ChatValidateResult =
@@ -29,8 +34,18 @@ export function validateChatRequest(body: unknown): ChatValidateResult {
     };
   }
 
-  const { message, language, sessionId, images, cropMemory, weather } =
-    body as ChatApiRequest;
+  const {
+    message,
+    language,
+    sessionId,
+    images,
+    cropMemory,
+    weather,
+    region,
+    crop,
+    greenhouse,
+    imageIds,
+  } = body as ChatApiRequest;
 
   if (!message || typeof message !== "string") {
     return {
@@ -88,6 +103,24 @@ export function validateChatRequest(body: unknown): ChatValidateResult {
     }
   }
 
+  let safeImageIds: string[] | undefined;
+  if (imageIds !== undefined) {
+    if (!Array.isArray(imageIds)) {
+      return { ok: false, error: "imageIds massiv bo'lishi kerak.", status: 400 };
+    }
+    if (imageIds.length > MAX_IMAGES) {
+      return {
+        ok: false,
+        error: `Bir vaqtda maksimal ${MAX_IMAGES} ta rasm.`,
+        status: 400,
+      };
+    }
+    safeImageIds = imageIds
+      .filter((id) => typeof id === "string" && id.trim().length > 0)
+      .map((id) => id.trim().slice(0, 128))
+      .slice(0, MAX_IMAGES);
+  }
+
   const resolvedLanguage = resolveLanguage(
     typeof language === "string" ? language : "auto",
     trimmed
@@ -103,6 +136,10 @@ export function validateChatRequest(body: unknown): ChatValidateResult {
       cropMemory:
         typeof cropMemory === "string" ? cropMemory.slice(0, 8000) : undefined,
       weather: typeof weather === "string" ? weather.slice(0, 2000) : undefined,
+      region: typeof region === "string" ? region.slice(0, 120) : undefined,
+      crop: typeof crop === "string" ? crop.slice(0, 120) : undefined,
+      greenhouse: typeof greenhouse === "boolean" ? greenhouse : undefined,
+      imageIds: safeImageIds?.length ? safeImageIds : undefined,
     },
   };
 }

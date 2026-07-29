@@ -10,9 +10,13 @@
     "lint": "next lint",
     "typecheck": "tsc --noEmit",
     "start:api": "tsx server/index.ts",
-    "test": "npm run test:lang",
+    "test": "npm run test:lang && npm run test:kb && npm run test:api-compat",
     "test:lang": "tsx scripts/test-language-detection.ts",
-    "test:smoke": "node scripts/production-api-smoke.js"
+    "test:kb": "tsx scripts/test-kb-rag.ts",
+    "test:api-compat": "tsx scripts/test-api-compat.ts",
+    "test:smoke": "node scripts/production-api-smoke.js",
+    "kb:ingest": "tsx scripts/kb-ingest.ts",
+    "kb:stats": "tsx scripts/kb-ingest.ts --seed-stats"
   },
   "dependencies": {
     "dotenv": "^16.4.0",
