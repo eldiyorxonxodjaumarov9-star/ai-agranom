@@ -4,6 +4,10 @@
   "installCommand": "npm install",
   "crons": [
     {
+      "path": "/api/cron/kb-bootstrap",
+      "schedule": "15 2 * * *"
+    },
+    {
       "path": "/api/cron/kb-sync?kind=diseases",
       "schedule": "0 3 * * 1"
     },

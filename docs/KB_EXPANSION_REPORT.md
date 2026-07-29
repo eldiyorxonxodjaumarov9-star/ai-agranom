@@ -21,7 +21,7 @@
 
 ## Next steps for targets
 
-1. Provision Neon/Supabase Postgres; set `DATABASE_URL` + `DIRECT_URL` on Vercel  
+1. Provision Neon/Supabase Postgres; set `DATABASE_URL` on Vercel (`DIRECT_URL` not required — schema has no `directUrl`)  
 2. `npx prisma migrate deploy`  
 3. `npm run kb:migrate-corpus`  
 4. Connect official KZ PPP registry for product VERIFIED  

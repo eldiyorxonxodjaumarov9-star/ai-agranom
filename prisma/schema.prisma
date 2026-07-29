@@ -9,6 +9,9 @@ generator client {
 datasource db {
   provider   = "postgresql"
   url        = env("DATABASE_URL")
+  // No directUrl — Neon/Vercel already provide DATABASE_URL (+ UNPOOLED for migrate CLI).
+  // Do not require DIRECT_URL. For `prisma migrate deploy`, prefer DATABASE_URL_UNPOOLED
+  // / POSTGRES_URL_NON_POOLING as process DATABASE_URL.
   extensions = [vector, pg_trgm, unaccent]
 }
 

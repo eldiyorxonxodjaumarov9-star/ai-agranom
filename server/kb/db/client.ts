@@ -2,17 +2,42 @@ import { PrismaClient } from "@prisma/client";
 
 const globalForPrisma = globalThis as unknown as { __agroPrisma?: PrismaClient };
 
-/** True when a real DATABASE_URL is configured for production use. */
-export function isDatabaseConfigured(): boolean {
-  const url = process.env.DATABASE_URL?.trim();
-  if (!url) return false;
+/** Prefer Neon pooled URL for runtime; never invent DIRECT_URL. */
+function resolveDatabaseUrl(): string {
+  const candidates = [
+    process.env.DATABASE_URL,
+    process.env.POSTGRES_PRISMA_URL,
+    process.env.POSTGRES_URL,
+    process.env.DATABASE_URL_UNPOOLED,
+    process.env.POSTGRES_URL_NON_POOLING,
+  ];
+  for (const c of candidates) {
+    const url = c?.trim();
+    if (url && isUsablePgUrl(url)) return url;
+  }
+  return "";
+}
+
+function isUsablePgUrl(url: string): boolean {
+  if (!/^postgres(ql)?:\/\//i.test(url)) return false;
   if (url.includes("YOUR_") || url.includes("user:pass@host")) return false;
-  // Local placeholder used for `prisma generate` only — not production
+  if (url === "[SENSITIVE]" || url.includes("[SENSITIVE]")) return false;
   if (
     /postgres:postgres@localhost/i.test(url) &&
     process.env.KB_ALLOW_LOCAL_DB !== "1"
   ) {
     return false;
+  }
+  return true;
+}
+
+/** True when a real DATABASE_URL is configured for production use. */
+export function isDatabaseConfigured(): boolean {
+  const url = resolveDatabaseUrl();
+  if (!url) return false;
+  // Prisma reads process.env.DATABASE_URL — normalize Neon aliases.
+  if (process.env.DATABASE_URL?.trim() !== url) {
+    process.env.DATABASE_URL = url;
   }
   return true;
 }

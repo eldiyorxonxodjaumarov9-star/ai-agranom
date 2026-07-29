@@ -5,7 +5,7 @@
   "scripts": {
     "dev": "next dev",
     "dev:full": "concurrently -n next,api -c green,blue \"next dev\" \"tsx watch server/index.ts\"",
-    "build": "next build",
+    "build": "node scripts/prisma-generate.js && node scripts/prisma-migrate-deploy.js && node scripts/kb-bootstrap-build.js && next build",
     "start": "next start",
     "lint": "next lint",
     "typecheck": "tsc --noEmit",
@@ -24,9 +24,10 @@
     "kb:migrate-corpus": "tsx scripts/kb-migrate-corpus.ts",
     "kb:verify-products": "tsx scripts/kb-verify-products.ts",
     "kb:corpus-stats": "tsx scripts/kb-stats.ts",
-    "kb:reindex": "tsx scripts/kb-stats.ts",
+    "kb:reindex": "tsx scripts/kb-reindex.ts",
     "prisma:generate": "node scripts/prisma-generate.js",
     "prisma:validate": "prisma validate",
+    "prisma:migrate:deploy": "node scripts/prisma-migrate-deploy.js",
     "postinstall": "node scripts/prisma-generate.js"
   },
   "dependencies": {
