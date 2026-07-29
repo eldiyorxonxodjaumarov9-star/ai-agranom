@@ -51,6 +51,18 @@ export async function migrateCorpusToDatabase(): Promise<CorpusMigrateReport> {
     errors: [],
   };
 
+  const force = process.env.FORCE_CORPUS_MIGRATE === "1";
+  if (!force) {
+    const existing = await prisma.knowledgeChunkRow.count();
+    if (existing > 0) {
+      report.skipped = existing;
+      console.info(
+        `[migrate-corpus] skip — ${existing} chunks already present (FORCE_CORPUS_MIGRATE=1 to re-run)`
+      );
+      return report;
+    }
+  }
+
   const batches = 50;
 
   // Ensure default sources
