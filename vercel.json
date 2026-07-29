@@ -1,5 +1,23 @@
 {
   "buildCommand": "npm run build",
   "framework": "nextjs",
-  "installCommand": "npm install"
+  "installCommand": "npm install",
+  "crons": [
+    {
+      "path": "/api/cron/kb-sync?kind=diseases",
+      "schedule": "0 3 * * 1"
+    },
+    {
+      "path": "/api/cron/kb-sync?kind=pests",
+      "schedule": "0 4 * * 1"
+    },
+    {
+      "path": "/api/cron/kb-sync?kind=product_registry",
+      "schedule": "0 2 * * *"
+    },
+    {
+      "path": "/api/cron/kb-sync?kind=broken_links",
+      "schedule": "0 5 * * 0"
+    }
+  ]
 }

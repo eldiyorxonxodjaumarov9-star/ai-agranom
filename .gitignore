@@ -53,4 +53,9 @@ Desktop.ini
 /data/kb/chunks.json
 /data/kb/sources.json
 /data/kb/embeddings.json
+/data/kb/sync-jobs.json
+/data/kb/failed-imports.json
+/data/kb/conflicts.json
+/data/kb/canonical-entities.json
+/data/kb/fetch-cache.json
 

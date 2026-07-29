@@ -1,0 +1,34 @@
+[
+  {
+    "externalId": "eppo-phytin",
+    "url": "https://gd.eppo.int/taxon/PHYTIN",
+    "title": "Phytophthora infestans (late blight) — EPPO",
+    "entityType": "disease",
+    "language": "en",
+    "scientificName": "Phytophthora infestans",
+    "eppoCode": "PHYTIN",
+    "synonyms": ["Phytophthora infestans (Mont.) de Bary"],
+    "commonNames": { "en": "Late blight", "ru": "Фитофтороз" },
+    "cropIds": ["tomato", "potato"],
+    "keywords": ["PHYTIN", "late blight", "фитофтороз", "tomato", "potato"],
+    "body": "EPPO taxon PHYTIN: Phytophthora infestans causes late blight of potato and tomato. Cool moist conditions favour rapid spread. Typical signs include water-soaked lesions and white sporulation on leaf undersides. Cultural sanitation and registered fungicides per official labels are key. This Knowledge Base entry cites EPPO Global Database; respect EPPO Terms of Use for redistribution.",
+    "license": "verify",
+    "publishedAt": "2024-01-01"
+  },
+  {
+    "externalId": "eppo-mysype",
+    "url": "https://gd.eppo.int/taxon/MYSYPE",
+    "title": "Myzus persicae (green peach aphid) — EPPO",
+    "entityType": "pest",
+    "language": "en",
+    "scientificName": "Myzus persicae",
+    "eppoCode": "MYSYPE",
+    "synonyms": ["Myzus persicae Sulzer"],
+    "commonNames": { "en": "Green peach aphid", "ru": "Персиковая тля" },
+    "cropIds": ["tomato", "pepper", "potato"],
+    "keywords": ["MYSYPE", "aphid", "тля", "virus vector"],
+    "body": "EPPO taxon MYSYPE: Myzus persicae is a polyphagous aphid and important virus vector. Monitor colonies on growing tips; favour biological control and selective insecticides only when thresholds are exceeded and products are registered for the crop. Cite EPPO Global Database; do not scrape beyond license.",
+    "license": "verify",
+    "publishedAt": "2024-01-01"
+  }
+]

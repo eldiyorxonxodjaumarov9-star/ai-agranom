@@ -1,0 +1,25 @@
+[
+  {
+    "externalId": "usda-tomato-nutrient",
+    "url": "https://www.usda.gov",
+    "title": "Tomato nutrient deficiency overview (extension summary)",
+    "entityType": "nutrient",
+    "language": "en",
+    "keywords": ["nitrogen", "potassium", "tomato", "yellowing", "extension"],
+    "cropIds": ["tomato"],
+    "body": "Land-grant extension summaries (USDA NIFA network) describe nitrogen deficiency as uniform yellowing of older tomato leaves and potassium deficiency as marginal scorch / uneven ripening. Confirm with tissue/soil tests when possible. Fertilizer rates must follow product labels — never invent doses. This curated Knowledge Base chunk points to official USDA domain materials; prefer state extension pages with open licenses when available.",
+    "license": "verify_per_document",
+    "publishedAt": "2022-01-01"
+  },
+  {
+    "externalId": "usda-ipm-basics",
+    "url": "https://www.usda.gov",
+    "title": "IPM basics for vegetable crops (extension)",
+    "entityType": "general",
+    "language": "en",
+    "keywords": ["IPM", "scouting", "threshold", "vegetables"],
+    "body": "University extension IPM basics: scout regularly, identify pests correctly, use cultural controls first, apply pesticides only when needed with registered products, and rotate modes of action. Regional climate and greenhouse vs open field change recommendations.",
+    "license": "verify_per_document",
+    "publishedAt": "2022-06-01"
+  }
+]

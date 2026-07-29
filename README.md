@@ -27,18 +27,22 @@ Optional backward-compatible fields: `region`, `crop`, `greenhouse`, `imageIds` 
 
 Auth: `Authorization: Bearer <AGRO_API_KEY>` (server-only). Never put `OPENAI_API_KEY` or `AGRO_API_KEY` in the frontend.
 
-## Knowledge Base & RAG (Phase 1)
+## Knowledge Base & RAG (Phase 1–2)
 
-Verified agronomy chunks + hybrid retrieval (keyword + embeddings). See:
+Verified agronomy chunks + hybrid retrieval + official source adapters.
 
 - [docs/KB_RAG_PLAN.md](docs/KB_RAG_PLAN.md) — roadmap
 - [docs/KB_PHASE1.md](docs/KB_PHASE1.md) — Phase 1 usage
+- [docs/KB_PHASE2.md](docs/KB_PHASE2.md) — adapters & scheduled sync
 
 ```bash
 npm run kb:stats
+npm run kb:sync -- --kind full
 npm run test:kb
-npx tsx scripts/kb-ingest.ts --json data/kb/samples/sample-import.json
+npm run test:kb-phase2
 ```
+
+Admin: `/admin/kb` (Bearer token in sessionStorage only).
 
 ## Scripts
 

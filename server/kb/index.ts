@@ -1,5 +1,5 @@
 /**
- * Knowledge Base public API — Phase 1.
+ * Knowledge Base public API — Phase 1 + Phase 2.
  */
 export { SOURCE_REGISTRY, getAllowedSources, getSourceById } from "./source-registry";
 export { SEED_CHUNKS, SEED_SOURCES } from "./seed";
@@ -8,6 +8,8 @@ export {
   loadSources,
   getVerifiedChunks,
   upsertChunks,
+  contentChecksum,
+  resetKbMemory,
 } from "./store";
 export { retrieveKnowledge } from "./retrieve";
 export {
@@ -17,4 +19,7 @@ export {
 } from "./provider";
 export { ingestJsonFile, ingestCsvFile, ingestJsonItems } from "./ingest";
 export type { IngestChunkInput } from "./ingest";
+export { getAllAdapters, getAdapterById } from "./adapters";
+export { runSyncJob, CRON_SCHEDULE, adaptersForKind } from "./sync/runner";
+export { deduplicateChunks, getPendingConflicts } from "./dedup";
 export type * from "./types";

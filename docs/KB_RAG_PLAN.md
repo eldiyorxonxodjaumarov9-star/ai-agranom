@@ -43,8 +43,14 @@ No model fine-tuning. RAG only.
 
 ### PHASE 2 — Official adapters & sync
 
-- FAO / EPPO / USDA adapters (license-checked)
-- Scheduled sync, checksum/ETag, normalization, dedup
+| Deliverable | Status |
+|-------------|--------|
+| FAO / EPPO / USDA / KZ registry adapters | Shipping |
+| Scheduled sync (Vercel cron) | Shipping |
+| Checksum / ETag / Last-Modified incremental | Shipping |
+| Normalization + dedup + conflicts | Shipping |
+| Admin `/admin/kb` + sync API views | Shipping |
+| Docs + tests | Shipping |
 
 ### PHASE 3 — Multimodal diagnosis
 

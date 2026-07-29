@@ -1,0 +1,24 @@
+[
+  {
+    "externalId": "fao-ipm-principles",
+    "url": "https://www.fao.org/pest-and-pesticide-management/ipm/integrated-pest-management/en/",
+    "title": "FAO Integrated Pest Management (IPM)",
+    "entityType": "general",
+    "language": "en",
+    "keywords": ["IPM", "FAO", "integrated pest management", "prevention"],
+    "body": "FAO Integrated Pest Management emphasizes prevention, monitoring, and control with preference for cultural, biological, and mechanical methods before chemical pesticides. Decisions should be based on thresholds and local conditions. Always follow registered product labels and national regulations. This chunk is curated from FAO public IPM guidance for Knowledge Base RAG; live re-fetch verifies page freshness via ETag when KB_LIVE_FETCH is enabled.",
+    "license": "verify_per_document",
+    "publishedAt": "2020-01-01"
+  },
+  {
+    "externalId": "fao-plant-health",
+    "url": "https://www.fao.org/plant-health/en/",
+    "title": "FAO Plant Health overview",
+    "entityType": "general",
+    "language": "en",
+    "keywords": ["plant health", "FAO", "quarantine", "biosecurity"],
+    "body": "FAO plant health materials highlight biosecurity, pest risk analysis, and international standards for phytosanitary measures. Quarantine pests require official reporting pathways. Do not invent treatment doses; refer growers to registered products and local plant protection services.",
+    "license": "verify_per_document",
+    "publishedAt": "2021-01-01"
+  }
+]
