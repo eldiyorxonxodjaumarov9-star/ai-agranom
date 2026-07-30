@@ -2,6 +2,7 @@
  * Time-budgeted embedding batch for serverless cron.
  * Prefer GitHub Actions for full reindex; this endpoint resumes safely in short slices.
  */
+import { Prisma } from "@prisma/client";
 import { getPrisma, isDatabaseConfigured } from "./client";
 import { embedTexts } from "../embeddings";
 import { getEmbeddingStats } from "./embedding-stats";
@@ -44,9 +45,17 @@ function isRateLimitError(err: unknown): boolean {
   );
 }
 
+type EmbedRow = {
+  id: string;
+  title: string;
+  content: string;
+  keywords: string[];
+  checksum: string;
+};
+
 /**
  * Embed chunks missing embeddingJson until maxMs budget.
- * Idempotent: already-embedded rows are never selected.
+ * Idempotent: already-embedded rows are never selected (unless force).
  */
 export async function runEmbeddingBatch(options?: {
   maxMs?: number;
@@ -99,34 +108,42 @@ export async function runEmbeddingBatch(options?: {
   };
 
   while (timeLeft() > 12_000) {
-    const rows = await prisma.knowledgeChunkRow.findMany({
-      where: force
-        ? { deletedAt: null }
-        : {
-            deletedAt: null,
-            embeddingJson: { equals: null as never },
-          },
-      orderBy: { id: "asc" },
-      take: batchSize,
-      select: {
-        id: true,
-        title: true,
-        content: true,
-        keywords: true,
-        checksum: true,
-        embeddingJson: true,
-      },
-    });
+    let work: EmbedRow[] = [];
 
-    if (rows.length === 0) {
+    if (force) {
+      const rows = await prisma.knowledgeChunkRow.findMany({
+        where: { deletedAt: null },
+        orderBy: { id: "asc" },
+        take: batchSize,
+        select: {
+          id: true,
+          title: true,
+          content: true,
+          keywords: true,
+          checksum: true,
+        },
+      });
+      work = rows;
+    } else {
+      // Raw SQL is reliable for JSON IS NULL (Prisma Json null filters are unreliable)
+      work = await prisma.$queryRaw<EmbedRow[]>`
+        SELECT id, title, content, keywords, checksum
+        FROM "KnowledgeChunkRow"
+        WHERE "deletedAt" IS NULL AND "embeddingJson" IS NULL
+        ORDER BY id ASC
+        LIMIT ${batchSize}
+      `;
+    }
+
+    if (work.length === 0) {
       break;
     }
 
     try {
-      const texts = rows.map(embedPayload);
+      const texts = work.map(embedPayload);
       const vectors = await embedTexts(texts);
-      for (let i = 0; i < rows.length; i++) {
-        const row = rows[i];
+      for (let i = 0; i < work.length; i++) {
+        const row = work[i];
         try {
           await prisma.knowledgeChunkRow.update({
             where: { id: row.id },
@@ -166,7 +183,7 @@ export async function runEmbeddingBatch(options?: {
         });
         break;
       }
-      report.failed += rows.length;
+      report.failed += work.length;
     }
 
     await prisma.importJob.update({
@@ -181,10 +198,9 @@ export async function runEmbeddingBatch(options?: {
     });
 
     console.info(
-      `[kb-embed-batch] +${rows.length} run=${report.processedThisRun} last=${report.checkpoint}`
+      `[kb-embed-batch] +${work.length} run=${report.processedThisRun} last=${report.checkpoint}`
     );
 
-    // force mode would re-embed forever — one batch only when force
     if (force) break;
   }
 
