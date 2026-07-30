@@ -2,17 +2,20 @@
  * Offline / CLI embedding reindex for KnowledgeChunkRow.
  * Never invoke from short-lived Vercel request handlers.
  */
-import { createHash } from "crypto";
 import { getPrisma, isDatabaseConfigured } from "./client";
 import { embedTexts } from "../embeddings";
-import { getEmbeddingStats } from "./embedding-stats";
+import { getEmbeddingStats, clearFailedEmbeddingJobs } from "./embedding-stats";
+import {
+  embeddingMatchesChecksum,
+  wrapEmbedding,
+} from "./embedding-json";
 
 const EMBED_MODEL = process.env.OPENAI_EMBEDDING_MODEL || "text-embedding-3-small";
 const DEFAULT_BATCH = Math.min(
   64,
   Math.max(1, Number(process.env.KB_EMBED_BATCH || 32) || 32)
 );
-const MAX_RETRIES = 5;
+const MAX_RETRIES = 6;
 const CHECKPOINT_KIND = "embedding_reindex";
 
 export type ReindexProgress = {
@@ -26,6 +29,8 @@ export type ReindexProgress = {
   estimatedCostUsd: number;
   model: string;
   resumedFrom: string | null;
+  checkpoint: string | null;
+  failedChunkIds: string[];
   errors: string[];
 };
 
@@ -42,21 +47,21 @@ function embedPayload(row: {
 }
 
 function estimateTokens(text: string): number {
-  // Rough heuristic for Latin/Cyrillic mixed agronomy text
   return Math.ceil(text.length / 4);
 }
 
-/** text-embedding-3-small list price approx $0.02 / 1M tokens */
 function estimateCostUsd(tokens: number): number {
   return (tokens / 1_000_000) * 0.02;
 }
 
-function contentChecksum(text: string): string {
-  return createHash("sha256").update(text).digest("hex").slice(0, 16);
-}
-
-function hasUsableEmbedding(embeddingJson: unknown): boolean {
-  return Array.isArray(embeddingJson) && embeddingJson.length > 0;
+function isRateLimitError(err: unknown): boolean {
+  const msg = (err instanceof Error ? err.message : String(err)).toLowerCase();
+  return (
+    msg.includes("rate limit") ||
+    msg.includes("429") ||
+    msg.includes("quota") ||
+    msg.includes("too many requests")
+  );
 }
 
 async function withBackoff<T>(fn: () => Promise<T>, label: string): Promise<T> {
@@ -66,7 +71,7 @@ async function withBackoff<T>(fn: () => Promise<T>, label: string): Promise<T> {
       return await fn();
     } catch (err) {
       last = err;
-      const delay = Math.min(30_000, 500 * 2 ** attempt);
+      const delay = Math.min(60_000, 800 * 2 ** attempt);
       console.warn(
         `[kb:reindex] retry ${attempt + 1}/${MAX_RETRIES} ${label} in ${delay}ms:`,
         err instanceof Error ? err.message : err
@@ -82,6 +87,7 @@ export async function reindexEmbeddings(options?: {
   limit?: number;
   force?: boolean;
   dryRun?: boolean;
+  retryFailedOnly?: boolean;
 }): Promise<ReindexProgress> {
   if (!isDatabaseConfigured()) {
     throw new Error("DATABASE_URL_REQUIRED");
@@ -111,7 +117,7 @@ export async function reindexEmbeddings(options?: {
     },
   });
 
-  const resumeAfterId = job.checkpoint || null;
+  const resumeAfterId = options?.retryFailedOnly ? null : job.checkpoint || null;
   const progress: ReindexProgress = {
     totalChunks: 0,
     embedded: 0,
@@ -123,6 +129,8 @@ export async function reindexEmbeddings(options?: {
     estimatedCostUsd: 0,
     model: EMBED_MODEL,
     resumedFrom: resumeAfterId,
+    checkpoint: resumeAfterId,
+    failedChunkIds: [],
     errors: [],
   };
 
@@ -137,24 +145,47 @@ export async function reindexEmbeddings(options?: {
 
   let cursor = resumeAfterId;
   let done = false;
+  let rateLimited = false;
 
-  while (!done) {
-    const rows = await prisma.knowledgeChunkRow.findMany({
-      where: verifiedWhere,
-      orderBy: { id: "asc" },
-      take: batchSize,
-      ...(cursor
-        ? { skip: 1, cursor: { id: cursor } }
-        : {}),
-      select: {
-        id: true,
-        title: true,
-        content: true,
-        keywords: true,
-        checksum: true,
-        embeddingJson: true,
-      },
-    });
+  const failedOnlyIds = options?.retryFailedOnly
+    ? (
+        await prisma.embeddingJob.findMany({
+          where: { status: "failed" },
+          select: { chunkId: true },
+          distinct: ["chunkId"],
+        })
+      ).map((r) => r.chunkId)
+    : null;
+
+  while (!done && !rateLimited) {
+    const rows = failedOnlyIds
+      ? await prisma.knowledgeChunkRow.findMany({
+          where: { id: { in: failedOnlyIds }, ...verifiedWhere },
+          orderBy: { id: "asc" },
+          take: batchSize,
+          select: {
+            id: true,
+            title: true,
+            content: true,
+            keywords: true,
+            checksum: true,
+            embeddingJson: true,
+          },
+        })
+      : await prisma.knowledgeChunkRow.findMany({
+          where: verifiedWhere,
+          orderBy: { id: "asc" },
+          take: batchSize,
+          ...(cursor ? { skip: 1, cursor: { id: cursor } } : {}),
+          select: {
+            id: true,
+            title: true,
+            content: true,
+            keywords: true,
+            checksum: true,
+            embeddingJson: true,
+          },
+        });
 
     if (rows.length === 0) {
       done = true;
@@ -163,31 +194,18 @@ export async function reindexEmbeddings(options?: {
 
     const needEmbed = force
       ? rows
-      : rows.filter((r) => {
-          if (!hasUsableEmbedding(r.embeddingJson)) return true;
-          // Invalidate when content checksum no longer matches stored marker
-          const meta = (r.embeddingJson as { __checksum?: string } | number[]) || null;
-          if (Array.isArray(meta)) {
-            // Plain float array — treat as fresh unless force
-            return false;
-          }
-          if (meta && typeof meta === "object" && meta.__checksum) {
-            return meta.__checksum !== r.checksum;
-          }
-          return false;
-        });
+      : rows.filter((r) => !embeddingMatchesChecksum(r.embeddingJson, r.checksum));
 
     progress.skippedFresh += rows.length - needEmbed.length;
 
     if (needEmbed.length === 0) {
       cursor = rows[rows.length - 1].id;
+      progress.checkpoint = cursor;
       await prisma.importJob.update({
         where: { id: job.id },
-        data: {
-          checkpoint: cursor,
-          progressJson: progress as never,
-        },
+        data: { checkpoint: cursor, progressJson: progress as never },
       });
+      if (failedOnlyIds) done = true;
       if (limit && progress.processedThisRun >= limit) break;
       if (rows.length < batchSize) done = true;
       continue;
@@ -199,8 +217,9 @@ export async function reindexEmbeddings(options?: {
     if (dryRun) {
       progress.processedThisRun += needEmbed.length;
       cursor = rows[rows.length - 1].id;
+      progress.checkpoint = cursor;
       console.info(
-        `[kb:reindex] dry-run batch cursor=${cursor} pending_embed=${needEmbed.length}`
+        `[kb:reindex] dry-run batch cursor=${cursor} embed=${needEmbed.length}`
       );
       if (limit && progress.processedThisRun >= limit) break;
       if (rows.length < batchSize) done = true;
@@ -219,7 +238,9 @@ export async function reindexEmbeddings(options?: {
         try {
           await prisma.knowledgeChunkRow.update({
             where: { id: row.id },
-            data: { embeddingJson: vector as never },
+            data: {
+              embeddingJson: wrapEmbedding(row.checksum, vector) as never,
+            },
           });
           await prisma.embeddingJob.create({
             data: {
@@ -233,6 +254,7 @@ export async function reindexEmbeddings(options?: {
           progress.failed++;
           const msg = err instanceof Error ? err.message : String(err);
           progress.errors.push(`${row.id}: ${msg}`);
+          progress.failedChunkIds.push(row.id);
           await prisma.embeddingJob.create({
             data: {
               chunkId: row.id,
@@ -244,13 +266,32 @@ export async function reindexEmbeddings(options?: {
         }
       }
 
-      // Soft rate limit between batches
       await sleep(Number(process.env.KB_EMBED_DELAY_MS || 200) || 200);
     } catch (err) {
       const msg = err instanceof Error ? err.message : String(err);
       progress.errors.push(`batch: ${msg}`);
+      progress.checkpoint = cursor || needEmbed[0]?.id || null;
+
+      if (isRateLimitError(err)) {
+        rateLimited = true;
+        await prisma.importJob.update({
+          where: { id: job.id },
+          data: {
+            status: "completed_partial",
+            checkpoint: progress.checkpoint,
+            progressJson: progress as never,
+            lastError: "rate_limited_resume",
+          },
+        });
+        console.warn(
+          `[kb:reindex] rate limited — checkpoint saved at ${progress.checkpoint}; re-run to resume`
+        );
+        break;
+      }
+
       for (const row of needEmbed) {
         progress.failed++;
+        progress.failedChunkIds.push(row.id);
         await prisma.embeddingJob.create({
           data: {
             chunkId: row.id,
@@ -263,6 +304,7 @@ export async function reindexEmbeddings(options?: {
     }
 
     cursor = rows[rows.length - 1].id;
+    progress.checkpoint = cursor;
     await prisma.importJob.update({
       where: { id: job.id },
       data: {
@@ -271,12 +313,21 @@ export async function reindexEmbeddings(options?: {
       },
     });
 
+    const pct =
+      progress.totalChunks > 0
+        ? Math.round(
+            ((progress.embedded + progress.processedThisRun) /
+              progress.totalChunks) *
+              1000
+          ) / 10
+        : 0;
     console.info(
-      `[kb:reindex] progress processed=${progress.processedThisRun} failed=${progress.failed} cursor=${cursor} tokens≈${progress.tokenEstimate}`
+      `[kb:reindex] +${needEmbed.length} run=${progress.processedThisRun} failed=${progress.failed} cursor=${cursor} progress≈${pct}% tokens≈${progress.tokenEstimate}`
     );
 
     if (limit && progress.processedThisRun >= limit) break;
     if (rows.length < batchSize) done = true;
+    if (failedOnlyIds) done = true;
   }
 
   progress.estimatedCostUsd =
@@ -288,20 +339,28 @@ export async function reindexEmbeddings(options?: {
     progress.embedded = stats.embedded;
     progress.pending = stats.pending;
     progress.failed = Math.max(progress.failed, stats.failed);
+    if (stats.failedChunkIds?.length) {
+      progress.failedChunkIds = Array.from(
+        new Set([...progress.failedChunkIds, ...stats.failedChunkIds])
+      );
+    }
   }
 
+  const complete = progress.pending === 0 && progress.failed === 0;
   await prisma.importJob.update({
     where: { id: job.id },
     data: {
-      status: progress.pending === 0 && progress.failed === 0 ? "completed" : "completed_partial",
-      checkpoint: cursor,
+      status: complete
+        ? "completed"
+        : rateLimited
+          ? "completed_partial"
+          : "completed_partial",
+      checkpoint: complete ? null : progress.checkpoint,
       progressJson: progress as never,
       lastError: progress.errors[0] || null,
     },
   });
 
-  // Silence unused helper in production builds that tree-shake oddly
-  void contentChecksum;
   return progress;
 }
 
@@ -312,4 +371,9 @@ export async function resetEmbeddingCheckpoint(): Promise<void> {
     where: { kind: CHECKPOINT_KIND },
     data: { checkpoint: null, status: "reset" },
   });
+}
+
+export async function retryFailedEmbeddings(): Promise<ReindexProgress> {
+  await clearFailedEmbeddingJobs();
+  return reindexEmbeddings({ retryFailedOnly: true });
 }

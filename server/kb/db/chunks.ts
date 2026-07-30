@@ -1,6 +1,7 @@
 import type { KnowledgeChunk } from "../types";
 import { getPrisma, isDatabaseConfigured } from "./client";
 import { cosineSimilarity, embedTexts } from "../embeddings";
+import { extractEmbeddingVector } from "./embedding-json";
 
 function mapRow(row: {
   id: string;
@@ -46,9 +47,7 @@ function mapRow(row: {
     version: row.version,
     updatedAt: row.updatedAt.toISOString(),
     checksum: row.checksum,
-    embedding: Array.isArray(row.embeddingJson)
-      ? (row.embeddingJson as number[])
-      : undefined,
+    embedding: extractEmbeddingVector(row.embeddingJson),
   };
 }
 

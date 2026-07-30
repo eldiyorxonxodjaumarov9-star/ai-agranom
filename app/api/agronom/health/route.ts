@@ -85,6 +85,11 @@ export async function GET(request: NextRequest) {
           lastReindexAt: embeddings.lastReindexAt,
         }
       : undefined,
+    embeddingCoverage: embeddings?.coveragePercent,
+    vectorIndexReady: embeddings?.vectorIndexReady,
+    pendingEmbeddings: embeddings?.pending,
+    failedEmbeddings: embeddings?.failed,
+    lastEmbeddingRun: embeddings?.lastReindexAt ?? null,
     migration,
   };
 

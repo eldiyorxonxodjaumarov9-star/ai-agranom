@@ -14,7 +14,7 @@ import {
   checkDatabaseHealth,
   getRecordCounts,
 } from "@/server/kb/db/client";
-import { getEmbeddingStats } from "@/server/kb/db/embedding-stats";
+import { getEmbeddingStats, clearFailedEmbeddingJobs } from "@/server/kb/db/embedding-stats";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
@@ -95,6 +95,43 @@ export async function POST(request: NextRequest) {
         maxMs: Number(body?.maxMs || 240000),
       });
       return NextResponse.json({ success: true, report });
+    }
+
+    if (action === "embedding-status") {
+      const embeddings = await getEmbeddingStats();
+      const job = await (async () => {
+        const { getPrisma } = await import("@/server/kb/db/client");
+        const prisma = getPrisma();
+        if (!prisma) return null;
+        return prisma.importJob.findFirst({
+          where: { kind: "embedding_reindex" },
+          orderBy: { updatedAt: "desc" },
+        });
+      })();
+      return NextResponse.json({
+        success: true,
+        embeddings,
+        job: job
+          ? {
+              status: job.status,
+              checkpoint: job.checkpoint,
+              updatedAt: job.updatedAt.toISOString(),
+              lastError: job.lastError,
+            }
+          : null,
+        workflow:
+          "GitHub Actions → KB Embedding Reindex (manual). Secrets: DATABASE_URL, OPENAI_API_KEY",
+      });
+    }
+
+    if (action === "retry-failed-embeddings") {
+      const cleared = await clearFailedEmbeddingJobs();
+      return NextResponse.json({
+        success: true,
+        clearedFailedJobs: cleared,
+        hint:
+          "Failed queue cleared. Run GitHub Actions KB Embedding Reindex with retry_failed=true, or: npm run kb:reindex -- --mode embeddings --retry-failed",
+      });
     }
 
     if (action === "approve" || action === "reject") {

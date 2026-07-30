@@ -69,6 +69,12 @@ export interface HealthApiResponse {
     vectorIndexReady: boolean;
     lastReindexAt: string | null;
   };
+  /** Top-level embedding fields for monitoring */
+  embeddingCoverage?: number;
+  vectorIndexReady?: boolean;
+  pendingEmbeddings?: number;
+  failedEmbeddings?: number;
+  lastEmbeddingRun?: string | null;
   /** True when CRON_SECRET env is set (value never exposed) */
   cronSecretConfigured?: boolean;
   /** Explicit flag when CRON_SECRET missing */

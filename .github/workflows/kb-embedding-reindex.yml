@@ -1,20 +1,16 @@
 name: KB Embedding Reindex
 
-# Manual only — never run 10k embeddings inside Vercel build/request.
-# Required repo secrets (Settings → Secrets and variables → Actions):
-#   DATABASE_URL          Neon unpooled preferred for long writes
+# Manual workflow — embed all VERIFIED KnowledgeChunk rows (resume-safe).
+# Required secrets (Settings → Secrets and variables → Actions):
+#   DATABASE_URL
 #   OPENAI_API_KEY
-# Optional:
-#   OPENAI_EMBEDDING_MODEL  (default text-embedding-3-small)
-#   DATABASE_URL_UNPOOLED
-#   KB_EMBED_BATCH
-#   KB_EMBED_DELAY_MS
+# Optional: OPENAI_EMBEDDING_MODEL, KB_EMBED_BATCH, KB_EMBED_DELAY_MS
 
 on:
   workflow_dispatch:
     inputs:
       force:
-        description: "Re-embed even if embeddingJson present (FORCE)"
+        description: "Re-embed all chunks (ignore existing embeddings)"
         required: false
         default: "false"
         type: choice
@@ -22,17 +18,25 @@ on:
           - "false"
           - "true"
       reset_checkpoint:
-        description: "Reset embedding checkpoint before run"
+        description: "Reset checkpoint before run"
         required: false
         default: "false"
         type: choice
         options:
           - "false"
           - "true"
-      limit:
-        description: "Optional max chunks this run (empty = all pending)"
+      retry_failed:
+        description: "Retry only failed chunk queue"
         required: false
-        default: ""
+        default: "false"
+        type: choice
+        options:
+          - "false"
+          - "true"
+      max_rounds:
+        description: "Max resume rounds (rate-limit safe)"
+        required: false
+        default: "120"
         type: string
 
 concurrency:
@@ -62,27 +66,29 @@ jobs:
           DATABASE_URL: ${{ secrets.DATABASE_URL }}
         run: npx prisma generate
 
+      - name: Verify secrets present
+        run: |
+          if [ -z "${{ secrets.DATABASE_URL }}" ] || [ -z "${{ secrets.OPENAI_API_KEY }}" ]; then
+            echo "Missing required secrets: DATABASE_URL and/or OPENAI_API_KEY"
+            echo "Add under: Settings → Secrets and variables → Actions"
+            exit 1
+          fi
+          echo "Secrets present (values not logged)"
+
       - name: Embedding status (before)
         env:
           DATABASE_URL: ${{ secrets.DATABASE_URL }}
-          OPENAI_API_KEY: ${{ secrets.OPENAI_API_KEY }}
-          OPENAI_EMBEDDING_MODEL: ${{ secrets.OPENAI_EMBEDDING_MODEL }}
         run: npm run kb:embedding-status || true
 
-      - name: Reindex embeddings
+      - name: Reindex embeddings (batch + checkpoint + resume)
         env:
           DATABASE_URL: ${{ secrets.DATABASE_URL }}
           OPENAI_API_KEY: ${{ secrets.OPENAI_API_KEY }}
           OPENAI_EMBEDDING_MODEL: ${{ secrets.OPENAI_EMBEDDING_MODEL }}
           KB_EMBED_BATCH: "32"
-          KB_EMBED_DELAY_MS: "200"
+          KB_EMBED_DELAY_MS: "250"
         run: |
           set -euo pipefail
-          if [ -z "${DATABASE_URL:-}" ] || [ -z "${OPENAI_API_KEY:-}" ]; then
-            echo "Missing required secrets: DATABASE_URL and/or OPENAI_API_KEY"
-            echo "Add them under: Settings → Secrets and variables → Actions"
-            exit 1
-          fi
           ARGS=(--mode embeddings)
           if [ "${{ inputs.reset_checkpoint }}" = "true" ]; then
             ARGS+=(--reset-checkpoint)
@@ -90,41 +96,69 @@ jobs:
           if [ "${{ inputs.force }}" = "true" ]; then
             ARGS+=(--force)
           fi
-          if [ -n "${{ inputs.limit }}" ]; then
-            ARGS+=(--limit "${{ inputs.limit }}")
+          if [ "${{ inputs.retry_failed }}" = "true" ]; then
+            ARGS+=(--retry-failed)
           fi
-          echo "Running: npm run kb:reindex -- ${ARGS[*]}"
-          npm run kb:reindex -- "${ARGS[@]}"
+          MAX_ROUNDS="${{ inputs.max_rounds }}"
+          ROUND=0
+          while [ "$ROUND" -lt "$MAX_ROUNDS" ]; do
+            ROUND=$((ROUND + 1))
+            echo "=== Reindex round $ROUND / $MAX_ROUNDS ==="
+            set +e
+            npm run kb:reindex -- "${ARGS[@]}"
+            RC=$?
+            set -e
+            STATUS_JSON=$(npx tsx scripts/kb-embedding-status.ts || echo '{}')
+            echo "$STATUS_JSON"
+            PENDING=$(node -e "const j=JSON.parse(process.argv[1]); console.log(j.embeddings?.pending ?? 1)" "$STATUS_JSON")
+            FAILED=$(node -e "const j=JSON.parse(process.argv[1]); console.log(j.embeddings?.failed ?? 1)" "$STATUS_JSON")
+            COV=$(node -e "const j=JSON.parse(process.argv[1]); console.log(j.embeddings?.coveragePercent ?? 0)" "$STATUS_JSON")
+            if [ "$PENDING" = "0" ] && [ "$FAILED" = "0" ]; then
+              echo "Coverage complete at ${COV}%"
+              break
+            fi
+            if [ "$RC" -eq 0 ] && [ "$PENDING" = "0" ]; then
+              break
+            fi
+            echo "Pending=$PENDING failed=$FAILED — sleeping 45s then resume from checkpoint"
+            sleep 45
+          done
 
       - name: Embedding status (after)
         if: always()
         env:
           DATABASE_URL: ${{ secrets.DATABASE_URL }}
-          OPENAI_API_KEY: ${{ secrets.OPENAI_API_KEY }}
         run: npm run kb:embedding-status
+
+      - name: Write failed chunk list
+        if: always()
+        env:
+          DATABASE_URL: ${{ secrets.DATABASE_URL }}
+        run: npx tsx scripts/kb-embedding-status.ts > embedding-status-final.json
+
+      - name: Upload failed queue artifact
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: embedding-failed-chunks
+          path: embedding-status-final.json
+          if-no-files-found: ignore
 
       - name: Fail if coverage incomplete
         env:
           DATABASE_URL: ${{ secrets.DATABASE_URL }}
         run: |
+          OUT=$(npx tsx scripts/kb-embedding-status.ts)
+          echo "$OUT"
           node -e "
-          const { execSync } = require('child_process');
-          const out = execSync('npx tsx scripts/kb-embedding-status.ts', {
-            encoding: 'utf8',
-            env: process.env,
-          });
-          const j = JSON.parse(out);
+          const j = JSON.parse(process.argv[1]);
           const e = j.embeddings || {};
-          console.log(JSON.stringify({
-            totalChunks: e.totalChunks,
-            embedded: e.embedded,
-            pending: e.pending,
-            failed: e.failed,
-            coveragePercent: e.coveragePercent,
-            vectorIndexReady: e.vectorIndexReady,
-          }, null, 2));
           if ((e.pending || 0) > 0 || (e.failed || 0) > 0 || (e.coveragePercent || 0) < 100) {
-            console.error('Embedding coverage incomplete — re-run workflow to resume from checkpoint');
+            console.error('Incomplete: embedded=' + e.embedded + ' pending=' + e.pending + ' failed=' + e.failed);
             process.exit(2);
           }
-          "
+          if (!e.vectorIndexReady) {
+            console.error('vectorIndexReady is false');
+            process.exit(2);
+          }
+          " "$OUT"

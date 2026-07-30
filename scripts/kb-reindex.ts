@@ -11,6 +11,7 @@ import "dotenv/config";
 import {
   reindexEmbeddings,
   resetEmbeddingCheckpoint,
+  retryFailedEmbeddings,
 } from "../server/kb/db/embeddings-reindex";
 import { getEmbeddingStats } from "../server/kb/db/embedding-stats";
 import {
@@ -36,17 +37,20 @@ async function main() {
   const force = hasFlag("--force");
   const dryRun = hasFlag("--dry-run");
   const reset = hasFlag("--reset-checkpoint");
+  const retryFailed = hasFlag("--retry-failed");
   const limit = arg("--limit") ? Number(arg("--limit")) : undefined;
   const batchSize = arg("--batch") ? Number(arg("--batch")) : undefined;
 
   if (mode === "embeddings" || mode === "embed") {
     if (reset) await resetEmbeddingCheckpoint();
-    const report = await reindexEmbeddings({
-      force,
-      dryRun,
-      limit,
-      batchSize,
-    });
+    const report = retryFailed
+      ? await retryFailedEmbeddings()
+      : await reindexEmbeddings({
+          force,
+          dryRun,
+          limit,
+          batchSize,
+        });
     console.log(JSON.stringify({ ok: true, mode: "embeddings", ...report }, null, 2));
     await getPrisma()?.$disconnect();
     process.exit(report.pending === 0 && report.failed === 0 ? 0 : 2);
