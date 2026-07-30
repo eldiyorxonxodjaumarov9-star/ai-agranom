@@ -1,5 +1,4 @@
 import { getPrisma, isDatabaseConfigured } from "./client";
-import { extractEmbeddingVector } from "./embedding-json";
 
 export type EmbeddingStats = {
   totalChunks: number;
@@ -18,31 +17,27 @@ export type EmbeddingStats = {
 const EMBED_MODEL = process.env.OPENAI_EMBEDDING_MODEL || "text-embedding-3-small";
 const CHECKPOINT_KIND = "embedding_reindex";
 
+/** Count all non-deleted chunks (full unique DB corpus). */
 export async function getEmbeddingStats(): Promise<EmbeddingStats | null> {
   if (!isDatabaseConfigured()) return null;
   const prisma = getPrisma();
   if (!prisma) return null;
 
   try {
-    const verifiedWhere = { deletedAt: null as null, status: "VERIFIED" as const };
+    const baseWhere = { deletedAt: null as null };
 
-    const [totalChunks, rows, failedJobs, lastJob, activeJob, failedRecent] =
+    const [totalChunks, embedded, failedJobs, lastJob, failedRecent] =
       await Promise.all([
-        prisma.knowledgeChunkRow.count({ where: verifiedWhere }),
-        prisma.knowledgeChunkRow.findMany({
-          where: verifiedWhere,
-          select: { id: true, embeddingJson: true },
+        prisma.knowledgeChunkRow.count({ where: baseWhere }),
+        prisma.knowledgeChunkRow.count({
+          where: {
+            ...baseWhere,
+            embeddingJson: { not: null as never },
+          },
         }),
         prisma.embeddingJob.count({ where: { status: "failed" } }),
         prisma.importJob.findFirst({
           where: { kind: CHECKPOINT_KIND },
-          orderBy: { updatedAt: "desc" },
-        }),
-        prisma.importJob.findFirst({
-          where: {
-            kind: CHECKPOINT_KIND,
-            status: { in: ["running", "completed_partial"] },
-          },
           orderBy: { updatedAt: "desc" },
         }),
         prisma.embeddingJob.findMany({
@@ -53,9 +48,6 @@ export async function getEmbeddingStats(): Promise<EmbeddingStats | null> {
         }),
       ]);
 
-    const embedded = rows.filter((r) =>
-      Boolean(extractEmbeddingVector(r.embeddingJson))
-    ).length;
     const pending = Math.max(0, totalChunks - embedded);
     const coveragePercent =
       totalChunks === 0 ? 0 : Math.round((embedded / totalChunks) * 1000) / 10;
@@ -66,17 +58,10 @@ export async function getEmbeddingStats(): Promise<EmbeddingStats | null> {
         SELECT extname FROM pg_extension WHERE extname = 'vector'
       `;
       vectorIndexReady =
-        ext.length > 0 && embedded >= totalChunks && totalChunks > 0;
+        ext.length > 0 && pending === 0 && totalChunks > 0 && embedded > 0;
     } catch {
-      vectorIndexReady = embedded >= totalChunks && totalChunks > 0;
+      vectorIndexReady = pending === 0 && totalChunks > 0 && embedded > 0;
     }
-
-    const completedAt =
-      activeJob?.status === "completed"
-        ? activeJob.updatedAt
-        : lastJob?.status === "completed"
-          ? lastJob.updatedAt
-          : lastJob?.updatedAt;
 
     return {
       totalChunks,
@@ -85,10 +70,10 @@ export async function getEmbeddingStats(): Promise<EmbeddingStats | null> {
       failed: failedJobs,
       coveragePercent,
       vectorIndexReady,
-      lastReindexAt: completedAt?.toISOString() ?? null,
+      lastReindexAt: lastJob?.updatedAt?.toISOString() ?? null,
       model: EMBED_MODEL,
-      jobStatus: activeJob?.status ?? lastJob?.status ?? null,
-      checkpoint: activeJob?.checkpoint ?? lastJob?.checkpoint ?? null,
+      jobStatus: lastJob?.status ?? null,
+      checkpoint: lastJob?.checkpoint ?? null,
       failedChunkIds: failedRecent.map((f) => f.chunkId),
     };
   } catch (err) {

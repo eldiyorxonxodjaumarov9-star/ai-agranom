@@ -136,7 +136,6 @@ export async function reindexEmbeddings(options?: {
 
   const verifiedWhere = {
     deletedAt: null as null,
-    status: "VERIFIED" as const,
   };
 
   progress.totalChunks = await prisma.knowledgeChunkRow.count({
