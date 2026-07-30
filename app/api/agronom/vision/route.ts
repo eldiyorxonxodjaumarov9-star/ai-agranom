@@ -1,7 +1,6 @@
 import type { NextRequest } from "next/server";
 import {
   getCorsHeaders,
-  isOriginAllowed,
   corsForbidden,
   jsonWithCors,
 } from "@/lib/agronom/cors";
@@ -25,8 +24,22 @@ export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
 export const maxDuration = 60;
 
+/**
+ * Bearer server clients often omit Origin. Allow missing Origin;
+ * when Origin is present, only allowlisted values pass.
+ */
+function isVisionOriginAllowed(request: NextRequest): boolean {
+  const origin = request.headers.get("origin");
+  if (!origin) return true;
+  const raw =
+    process.env.ALLOWED_ORIGINS ||
+    "http://localhost:3000,https://ai-agranom.vercel.app,https://agroolam.uz,https://www.agroolam.uz";
+  const allowed = raw.split(",").map((o) => o.trim()).filter(Boolean);
+  return allowed.includes(origin);
+}
+
 export async function OPTIONS(request: NextRequest) {
-  if (!isOriginAllowed(request)) {
+  if (!isVisionOriginAllowed(request)) {
     return corsForbidden(request);
   }
   return new Response(null, {
@@ -65,7 +78,7 @@ export async function POST(request: NextRequest) {
     });
   };
 
-  if (!isOriginAllowed(request)) {
+  if (!isVisionOriginAllowed(request)) {
     return finish(corsForbidden(request), 403);
   }
 
