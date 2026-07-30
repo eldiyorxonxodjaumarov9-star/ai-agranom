@@ -103,4 +103,6 @@ export interface RagRetrievalResult {
   chunks: RetrievedChunk[];
   sources: RagCitation[];
   confidence: number;
+  /** Which retrieval paths contributed (exact|vector|full_text|corpus_fallback) */
+  retrievalModes?: string[];
 }

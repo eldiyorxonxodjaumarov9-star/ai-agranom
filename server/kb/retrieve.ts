@@ -87,7 +87,8 @@ function rankChunks(
   tokens: string[],
   embeddings: Record<string, number[]>,
   queryVec: number[] | null,
-  options?: { limit?: number; language?: string; cropHint?: string }
+  options?: { limit?: number; language?: string; cropHint?: string },
+  retrievalModes: string[] = []
 ): RagRetrievalResult {
   const limit = options?.limit ?? 8;
 
@@ -179,6 +180,7 @@ function rankChunks(
     chunks: top,
     sources: Array.from(sourceMap.values()),
     confidence,
+    retrievalModes,
   };
 }
 
@@ -271,5 +273,5 @@ export async function retrieveKnowledge(
     queryVec = null;
   }
 
-  return rankChunks(query, chunks, tokens, embeddingMap, queryVec, options);
+  return rankChunks(query, chunks, tokens, embeddingMap, queryVec, options, modes);
 }

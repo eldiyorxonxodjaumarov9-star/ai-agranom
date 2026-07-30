@@ -15,6 +15,7 @@ async function one(label: string, query: string, language?: string) {
   process.env.KB_RETRIEVAL_DEBUG = "1";
   const start = Date.now();
   const rag = await retrieveKnowledge(query, { limit: 5, language });
+  const modes = rag.retrievalModes || [];
   return {
     label,
     language: language || "auto",
@@ -24,12 +25,16 @@ async function one(label: string, query: string, language?: string) {
     topVector: rag.chunks[0]?.vectorScore ?? 0,
     topKeyword: rag.chunks[0]?.keywordScore ?? 0,
     confidence: rag.confidence,
-    modeHint:
-      (rag.chunks[0]?.vectorScore ?? 0) > 0.28
-        ? "vector_likely"
-        : (rag.chunks[0]?.keywordScore ?? 0) > 0
-          ? "keyword_or_exact"
-          : "weak",
+    modes,
+    modeHint: modes.includes("vector")
+      ? "vector"
+      : modes.includes("exact")
+        ? "exact"
+        : modes.includes("full_text")
+          ? "full_text"
+          : modes.includes("corpus_fallback")
+            ? "corpus_fallback"
+            : "weak",
   };
 }
 
@@ -48,7 +53,7 @@ async function main() {
     await one("typo", "phytophthora infestans tomatto blight", "en"),
   ];
 
-  const vectorish = cases.filter((c) => c.modeHint === "vector_likely").length;
+  const vectorish = cases.filter((c) => c.modeHint === "vector").length;
   const report = {
     ok: health.database === "connected" && (emb?.embedded || 0) > 0,
     health: {
@@ -63,8 +68,8 @@ async function main() {
       (emb?.coveragePercent || 0) < 100
         ? "Embedding coverage incomplete — vector mode not proven"
         : vectorish >= 3
-          ? "Semantic cases show vector_likely scores"
-          : "Embeddings present but vector scores weak — check reindex",
+          ? "Semantic cases show vector modes"
+          : "Embeddings present but vector modes weak — check reindex",
   };
   console.log(JSON.stringify(report, null, 2));
   process.exit(report.ok && vectorish >= 3 ? 0 : 2);
