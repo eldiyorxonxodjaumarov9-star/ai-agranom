@@ -6,7 +6,12 @@ import { createHash } from "crypto";
 import { Prisma } from "@prisma/client";
 import { getPrisma, isDatabaseConfigured, getRecordCounts } from "./client";
 import { buildCorpusChunks, corpusStats } from "../corpus/build";
-import { migrateCorpusToDatabase } from "./migrate-corpus";
+import { DISEASES } from "../corpus/diseases";
+import { DISEASES_EXTRA } from "../corpus/diseases-extra";
+import { DISEASES_PHASE4 } from "../corpus/diseases-phase4";
+import { PESTS } from "../corpus/pests";
+import { PESTS_EXTRA } from "../corpus/pests-extra";
+import { PESTS_PHASE4 } from "../corpus/pests-phase4";
 
 const JOB_KEY = "corpus_bootstrap:main";
 const JOB_KIND = "corpus_bootstrap";
@@ -66,7 +71,7 @@ export async function runCorpusBootstrapBatch(options?: {
   const prisma = getPrisma();
   if (!prisma) throw new Error("DATABASE_URL_REQUIRED");
 
-  const maxMs = options?.maxMs ?? Number(process.env.KB_BOOTSTRAP_MAX_MS || 240000);
+  const maxMs = options?.maxMs ?? Number(process.env.KB_BOOTSTRAP_MAX_MS || 50000);
   const batchSize = options?.batchSize ?? 40;
   const started = Date.now();
   const corpus = corpusStats();
@@ -112,50 +117,100 @@ export async function runCorpusBootstrapBatch(options?: {
 
   const timeLeft = () => maxMs - (Date.now() - started);
 
-  // Phase 1: entities (crops/diseases/pests/products) via full migrate when not done
-  // Full migrate also writes chunks — for resume we prefer chunk-only after entities.
-  if (!cp.entitiesDone || cp.stage === "entities" || options?.force) {
-    if (timeLeft() < 30_000) {
-      report.elapsedMs = Date.now() - started;
-      report.recordCounts = await getRecordCounts();
-      report.chunksInDb = report.recordCounts?.chunks ?? 0;
-      return report;
+  // Phase 1: mark entities stage quickly — full migrateCorpusToDatabase is too
+  // heavy for serverless; fill disease/pest entity gaps in short bursts.
+  if (!cp.entitiesDone || cp.stage === "entities") {
+    const ALL_DISEASES = [...DISEASES, ...DISEASES_EXTRA, ...DISEASES_PHASE4];
+    const ALL_PESTS = [...PESTS, ...PESTS_EXTRA, ...PESTS_PHASE4];
+    for (const d of ALL_DISEASES) {
+      if (timeLeft() < 12_000) break;
+      try {
+        const checksum = sha(JSON.stringify(d));
+        const existing = await prisma.disease.findUnique({ where: { id: d.id } });
+        if (existing?.checksum === checksum) continue;
+        await prisma.disease.upsert({
+          where: { id: d.id },
+          create: {
+            id: d.id,
+            scientificName: d.scientificName,
+            eppoCode: d.eppoCode || null,
+            pathogenType: d.pathogenType,
+            pathogenName: d.scientificName,
+            severity: d.severity,
+            status: "VERIFIED",
+            qualityScore: 88,
+            checksum,
+            sourceUrl: d.sourceUrl,
+            organization: d.organization,
+          },
+          update: {
+            scientificName: d.scientificName,
+            checksum,
+            sourceUrl: d.sourceUrl,
+            organization: d.organization,
+          },
+        });
+        report.processedThisRun++;
+      } catch (e) {
+        report.failed++;
+        report.errors.push(`disease ${d.id}: ${e instanceof Error ? e.message : e}`);
+      }
     }
-
-    // Ensure entities+chunks progress using existing idempotent migrate.
-    // If already near complete, migrate skips quickly.
-    process.env.FORCE_CORPUS_MIGRATE = options?.force ? "1" : process.env.FORCE_CORPUS_MIGRATE || "0";
-
-    // Prefer chunk-only resume when entities mostly present
-    const counts = await getRecordCounts();
-    const entitiesLikelyDone =
-      counts &&
-      counts.crops >= corpus.crops &&
-      counts.diseases >= Math.floor(corpus.diseases * 0.9) &&
-      counts.pests >= Math.floor(corpus.pests * 0.9);
-
-    if (!entitiesLikelyDone || options?.force) {
-      // Run full migrate but it may exceed maxMs — caller should re-invoke.
-      // Soft guard: only call if plenty of time.
-      if (timeLeft() > 60_000) {
-        try {
-          await migrateCorpusToDatabase();
-        } catch (e) {
-          report.failed++;
-          report.errors.push(e instanceof Error ? e.message : String(e));
-        }
+    for (const p of ALL_PESTS) {
+      if (timeLeft() < 10_000) break;
+      try {
+        const checksum = sha(JSON.stringify(p));
+        const existing = await prisma.pest.findUnique({ where: { id: p.id } });
+        if (existing?.checksum === checksum) continue;
+        await prisma.pest.upsert({
+          where: { id: p.id },
+          create: {
+            id: p.id,
+            scientificName: p.scientificName,
+            eppoCode: p.eppoCode || null,
+            pestType: p.pestType,
+            status: "VERIFIED",
+            qualityScore: 86,
+            checksum,
+            sourceUrl: p.sourceUrl,
+            organization: p.organization,
+          },
+          update: {
+            scientificName: p.scientificName,
+            checksum,
+            sourceUrl: p.sourceUrl,
+            organization: p.organization,
+          },
+        });
+        report.processedThisRun++;
+      } catch (e) {
+        report.failed++;
+        report.errors.push(`pest ${p.id}: ${e instanceof Error ? e.message : e}`);
       }
     }
 
+    const counts = await getRecordCounts();
+    const entitiesDone =
+      !!counts &&
+      counts.diseases >= corpus.diseases &&
+      counts.pests >= corpus.pests;
     cp = {
-      stage: "chunks",
+      stage: entitiesDone ? "chunks" : "entities",
       chunkIndex: Math.max(cp.chunkIndex, 0),
-      entitiesDone: true,
+      entitiesDone,
     };
     await prisma.importJob.update({
       where: { id: job.id },
       data: { checkpoint: JSON.stringify(cp), progressJson: report as never },
     });
+    if (!entitiesDone || timeLeft() < 12_000) {
+      report.elapsedMs = Date.now() - started;
+      report.recordCounts = counts;
+      report.chunksInDb = counts?.chunks ?? 0;
+      report.checkpoint = cp;
+      report.stage = cp.stage;
+      return report;
+    }
   }
 
   // Phase 2: chunk upserts from checkpoint index

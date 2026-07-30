@@ -81,5 +81,7 @@ export interface HealthApiResponse {
     gapPests: number;
     jobStatus?: string;
     checkpoint?: unknown;
+    lastBootstrapAt?: string | null;
+    lastEmbeddingRunAt?: string | null;
   };
 }

@@ -1,0 +1,130 @@
+name: KB Embedding Reindex
+
+# Manual only — never run 10k embeddings inside Vercel build/request.
+# Required repo secrets (Settings → Secrets and variables → Actions):
+#   DATABASE_URL          Neon unpooled preferred for long writes
+#   OPENAI_API_KEY
+# Optional:
+#   OPENAI_EMBEDDING_MODEL  (default text-embedding-3-small)
+#   DATABASE_URL_UNPOOLED
+#   KB_EMBED_BATCH
+#   KB_EMBED_DELAY_MS
+
+on:
+  workflow_dispatch:
+    inputs:
+      force:
+        description: "Re-embed even if embeddingJson present (FORCE)"
+        required: false
+        default: "false"
+        type: choice
+        options:
+          - "false"
+          - "true"
+      reset_checkpoint:
+        description: "Reset embedding checkpoint before run"
+        required: false
+        default: "false"
+        type: choice
+        options:
+          - "false"
+          - "true"
+      limit:
+        description: "Optional max chunks this run (empty = all pending)"
+        required: false
+        default: ""
+        type: string
+
+concurrency:
+  group: kb-embedding-reindex
+  cancel-in-progress: false
+
+jobs:
+  reindex:
+    name: Embed KnowledgeChunk rows
+    runs-on: ubuntu-latest
+    timeout-minutes: 360
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Setup Node
+        uses: actions/setup-node@v4
+        with:
+          node-version: "20"
+          cache: npm
+
+      - name: Install
+        run: npm ci
+
+      - name: Prisma generate
+        env:
+          DATABASE_URL: ${{ secrets.DATABASE_URL }}
+        run: npx prisma generate
+
+      - name: Embedding status (before)
+        env:
+          DATABASE_URL: ${{ secrets.DATABASE_URL }}
+          OPENAI_API_KEY: ${{ secrets.OPENAI_API_KEY }}
+          OPENAI_EMBEDDING_MODEL: ${{ secrets.OPENAI_EMBEDDING_MODEL }}
+        run: npm run kb:embedding-status || true
+
+      - name: Reindex embeddings
+        env:
+          DATABASE_URL: ${{ secrets.DATABASE_URL }}
+          OPENAI_API_KEY: ${{ secrets.OPENAI_API_KEY }}
+          OPENAI_EMBEDDING_MODEL: ${{ secrets.OPENAI_EMBEDDING_MODEL }}
+          KB_EMBED_BATCH: "32"
+          KB_EMBED_DELAY_MS: "200"
+        run: |
+          set -euo pipefail
+          if [ -z "${DATABASE_URL:-}" ] || [ -z "${OPENAI_API_KEY:-}" ]; then
+            echo "Missing required secrets: DATABASE_URL and/or OPENAI_API_KEY"
+            echo "Add them under: Settings → Secrets and variables → Actions"
+            exit 1
+          fi
+          ARGS=(--mode embeddings)
+          if [ "${{ inputs.reset_checkpoint }}" = "true" ]; then
+            ARGS+=(--reset-checkpoint)
+          fi
+          if [ "${{ inputs.force }}" = "true" ]; then
+            ARGS+=(--force)
+          fi
+          if [ -n "${{ inputs.limit }}" ]; then
+            ARGS+=(--limit "${{ inputs.limit }}")
+          fi
+          echo "Running: npm run kb:reindex -- ${ARGS[*]}"
+          npm run kb:reindex -- "${ARGS[@]}"
+
+      - name: Embedding status (after)
+        if: always()
+        env:
+          DATABASE_URL: ${{ secrets.DATABASE_URL }}
+          OPENAI_API_KEY: ${{ secrets.OPENAI_API_KEY }}
+        run: npm run kb:embedding-status
+
+      - name: Fail if coverage incomplete
+        env:
+          DATABASE_URL: ${{ secrets.DATABASE_URL }}
+        run: |
+          node -e "
+          const { execSync } = require('child_process');
+          const out = execSync('npx tsx scripts/kb-embedding-status.ts', {
+            encoding: 'utf8',
+            env: process.env,
+          });
+          const j = JSON.parse(out);
+          const e = j.embeddings || {};
+          console.log(JSON.stringify({
+            totalChunks: e.totalChunks,
+            embedded: e.embedded,
+            pending: e.pending,
+            failed: e.failed,
+            coveragePercent: e.coveragePercent,
+            vectorIndexReady: e.vectorIndexReady,
+          }, null, 2));
+          if ((e.pending || 0) > 0 || (e.failed || 0) > 0 || (e.coveragePercent || 0) < 100) {
+            console.error('Embedding coverage incomplete — re-run workflow to resume from checkpoint');
+            process.exit(2);
+          }
+          "

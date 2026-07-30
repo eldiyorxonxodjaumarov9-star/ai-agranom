@@ -94,7 +94,7 @@ export async function POST(request: NextRequest) {
   const maxMs = Number(
     request.nextUrl.searchParams.get("maxMs") ||
       process.env.KB_BOOTSTRAP_MAX_MS ||
-      240000
+      45000
   );
 
   console.info("[admin/kb/bootstrap] batch start", {

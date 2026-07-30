@@ -34,6 +34,8 @@ pnpm-debug.log*
 .env.production.local
 .env*.local
 !.env.example
+.cron-secret.local
+.env.cron*
 
 # typescript
 *.tsbuildinfo

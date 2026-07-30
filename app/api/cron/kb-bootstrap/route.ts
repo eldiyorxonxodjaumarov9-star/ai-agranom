@@ -12,12 +12,12 @@ import { getEmbeddingStats } from "@/server/kb/db/embedding-stats";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
-export const maxDuration = 300;
+export const maxDuration = 60;
 
 /**
  * Vercel Cron / manual bootstrap with checkpoint resume.
+ * Keep batches short (default 45–50s) to avoid platform 504.
  * Auth: Authorization: Bearer CRON_SECRET
- * Optional AGRO_API_KEY when KB_CRON_ALLOW_AGRO_KEY=1
  */
 export async function GET(request: NextRequest) {
   return run(request);
@@ -69,14 +69,21 @@ async function run(request: NextRequest) {
   }
 
   const force = request.nextUrl.searchParams.get("force") === "1";
+  const maxMs = Number(
+    request.nextUrl.searchParams.get("maxMs") ||
+      process.env.KB_BOOTSTRAP_MAX_MS ||
+      45000
+  );
+
   console.info("[kb-bootstrap] batch start", {
     force,
+    maxMs,
     authVia: auth.via,
     authFp: auth.fingerprint,
   });
 
   try {
-    const report = await runCorpusBootstrapBatch({ force, maxMs: 240000 });
+    const report = await runCorpusBootstrapBatch({ force, maxMs });
     return NextResponse.json({
       success: true,
       authVia: auth.via,

@@ -39,6 +39,8 @@ export async function GET(request: NextRequest) {
         gapPests: boot.gap.pests,
         jobStatus: boot.job?.status,
         checkpoint: boot.job?.checkpoint,
+        lastBootstrapAt: boot.job?.updatedAt ?? null,
+        lastEmbeddingRunAt: embeddings?.lastReindexAt ?? null,
       };
     }
   } catch {
