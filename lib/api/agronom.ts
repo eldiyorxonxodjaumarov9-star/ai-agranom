@@ -18,12 +18,31 @@ export interface ChatRequestOptions {
   weather?: string;
 }
 
+let sessionReady: Promise<void> | null = null;
+
+async function ensureSiteChatSession(): Promise<void> {
+  if (!sessionReady) {
+    sessionReady = fetch("/api/chat/session", {
+      method: "GET",
+      credentials: "include",
+    })
+      .then(() => undefined)
+      .catch(() => {
+        sessionReady = null;
+      });
+  }
+  await sessionReady;
+}
+
 export async function streamAgronomReply(
   options: ChatRequestOptions,
   callbacks: AgronomStreamCallbacks
 ): Promise<void> {
+  await ensureSiteChatSession();
+
   const response = await fetch(getChatEndpoint(true), {
     method: "POST",
+    credentials: "include",
     headers: {
       "Content-Type": "application/json",
       Accept: "text/event-stream",

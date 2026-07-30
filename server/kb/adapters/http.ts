@@ -1,3 +1,4 @@
+import { assertSafeOutboundUrl } from "@/lib/agronom/ssrf";
 import { createHash } from "crypto";
 import type { FetchCacheEntry } from "./types";
 import {
@@ -55,6 +56,8 @@ export async function fetchWithPolicy(
 
   if (crawlDelayMs > 0) await sleep(crawlDelayMs);
 
+  await assertSafeOutboundUrl(url);
+
   const cache = loadFetchCache();
   const prev = cache[url];
 
@@ -77,7 +80,7 @@ export async function fetchWithPolicy(
         method,
         headers,
         signal: controller.signal,
-        redirect: "follow",
+        redirect: "error",
       });
 
       clearTimeout(timer);

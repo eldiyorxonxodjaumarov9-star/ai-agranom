@@ -125,6 +125,54 @@ export async function runCorpusBootstrapBatch(options?: {
 
   const timeLeft = () => maxMs - (Date.now() - started);
 
+  // Ensure Source FK targets exist (cron bootstrap may run before full migrate)
+  for (const s of [
+    {
+      id: "src-eppo",
+      title: "EPPO curated",
+      organization: "EPPO",
+      url: "https://gd.eppo.int",
+      license: "verify",
+      reliabilityScore: 0.96,
+    },
+    {
+      id: "src-usda",
+      title: "USDA/extension curated",
+      organization: "USDA/extension",
+      url: "https://www.usda.gov",
+      license: "verify_per_document",
+      reliabilityScore: 0.88,
+    },
+    {
+      id: "src-fao",
+      title: "FAO curated",
+      organization: "FAO",
+      url: "https://www.fao.org",
+      license: "verify_per_document",
+      reliabilityScore: 0.95,
+    },
+  ] as const) {
+    try {
+      await prisma.source.upsert({
+        where: { id: s.id },
+        create: {
+          id: s.id,
+          title: s.title,
+          organization: s.organization,
+          url: s.url,
+          license: s.license,
+          reliabilityScore: s.reliabilityScore,
+          accessedAt: new Date(),
+        },
+        update: { title: s.title, accessedAt: new Date() },
+      });
+    } catch (e) {
+      report.errors.push(
+        `source ${s.id}: ${e instanceof Error ? e.message : e}`
+      );
+    }
+  }
+
   const countsEarly = await getRecordCounts();
   const chunkGapEarly = Math.max(0, expectedChunks - (countsEarly?.chunks ?? 0));
   const diseaseGapEarly = Math.max(0, corpus.diseases - (countsEarly?.diseases ?? 0));

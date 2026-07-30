@@ -1,40 +1,82 @@
 import type { ChatHistoryItem } from "@/server/services/agronomService";
+import { getPrisma, isDatabaseConfigured } from "@/server/kb/db/client";
 
 const SESSION_TTL_MS = 30 * 60 * 1000;
-const MAX_SESSIONS = 500;
 
-interface SessionEntry {
-  history: ChatHistoryItem[];
-  expiresAt: number;
-}
-
-const sessions = new Map<string, SessionEntry>();
-
-function cleanupSessions(): void {
-  const now = Date.now();
-  sessions.forEach((entry, id) => {
-    if (entry.expiresAt < now) {
-      sessions.delete(id);
-    }
-  });
-
-  if (sessions.size > MAX_SESSIONS) {
-    const oldest = Array.from(sessions.entries()).sort(
-      (a, b) => a[1].expiresAt - b[1].expiresAt
+async function upsertPostgres(
+  sessionId: string,
+  history: ChatHistoryItem[]
+): Promise<boolean> {
+  if (!isDatabaseConfigured()) return false;
+  const prisma = getPrisma();
+  if (!prisma) return false;
+  try {
+    const expiresAt = new Date(Date.now() + SESSION_TTL_MS);
+    await prisma.$executeRaw`
+      INSERT INTO "ChatSession" (id, history, "expiresAt", "updatedAt")
+      VALUES (${sessionId}, ${JSON.stringify(history)}::jsonb, ${expiresAt}, NOW())
+      ON CONFLICT (id) DO UPDATE SET
+        history = EXCLUDED.history,
+        "expiresAt" = EXCLUDED."expiresAt",
+        "updatedAt" = NOW()
+    `;
+    return true;
+  } catch (err) {
+    console.warn(
+      "[session] postgres write failed:",
+      err instanceof Error ? err.message : err
     );
-    const toRemove = oldest.slice(0, sessions.size - MAX_SESSIONS);
-    toRemove.forEach(([id]) => sessions.delete(id));
+    return false;
   }
 }
 
-export function getSessionHistory(sessionId: string): ChatHistoryItem[] {
-  cleanupSessions();
-  const entry = sessions.get(sessionId);
-  if (!entry || entry.expiresAt < Date.now()) {
-    sessions.delete(sessionId);
-    return [];
+async function readPostgres(sessionId: string): Promise<ChatHistoryItem[] | null> {
+  if (!isDatabaseConfigured()) return null;
+  const prisma = getPrisma();
+  if (!prisma) return null;
+  try {
+    const rows = await prisma.$queryRaw<
+      Array<{ history: unknown; expiresAt: Date }>
+    >`
+      SELECT history, "expiresAt" FROM "ChatSession"
+      WHERE id = ${sessionId} AND "expiresAt" > NOW()
+      LIMIT 1
+    `;
+    if (!rows[0]) return [];
+    const h = rows[0].history;
+    return Array.isArray(h) ? (h as ChatHistoryItem[]) : [];
+  } catch {
+    return null;
   }
-  return [...entry.history];
+}
+
+export async function getSessionHistoryAsync(
+  sessionId: string
+): Promise<ChatHistoryItem[]> {
+  const fromDb = await readPostgres(sessionId);
+  if (fromDb !== null) return fromDb;
+  return [];
+}
+
+export async function appendSessionHistoryAsync(
+  sessionId: string,
+  userMessage: string,
+  assistantMessage: string
+): Promise<void> {
+  const existing = await getSessionHistoryAsync(sessionId);
+  const history = [
+    ...existing,
+    { role: "user" as const, content: userMessage },
+    { role: "assistant" as const, content: assistantMessage },
+  ].slice(-20);
+  await upsertPostgres(sessionId, history);
+}
+
+/** Sync API kept for callers — delegates to async fire-and-forget where needed */
+export function getSessionHistory(sessionId: string): ChatHistoryItem[] {
+  // Sync path cannot await DB; return empty and prefer async callers.
+  void sessionId;
+  return [];
 }
 
 export function appendSessionHistory(
@@ -42,21 +84,17 @@ export function appendSessionHistory(
   userMessage: string,
   assistantMessage: string
 ): void {
-  cleanupSessions();
-  const existing = sessions.get(sessionId);
-  const history = existing?.history ?? [];
-
-  history.push(
-    { role: "user", content: userMessage },
-    { role: "assistant", content: assistantMessage }
-  );
-
-  sessions.set(sessionId, {
-    history: history.slice(-20),
-    expiresAt: Date.now() + SESSION_TTL_MS,
-  });
+  void appendSessionHistoryAsync(sessionId, userMessage, assistantMessage);
 }
 
 export function clearSession(sessionId: string): void {
-  sessions.delete(sessionId);
+  void (async () => {
+    const prisma = getPrisma();
+    if (!prisma) return;
+    try {
+      await prisma.$executeRaw`DELETE FROM "ChatSession" WHERE id = ${sessionId}`;
+    } catch {
+      /* ignore */
+    }
+  })();
 }

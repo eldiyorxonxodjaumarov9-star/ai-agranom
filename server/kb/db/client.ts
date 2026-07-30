@@ -1,41 +1,18 @@
 import { PrismaClient } from "@prisma/client";
+import {
+  resolveRuntimeDatabaseUrl,
+  resolveMigrationDatabaseUrl,
+} from "./urls";
 
-const globalForPrisma = globalThis as unknown as { __agroPrisma?: PrismaClient };
+const globalForPrisma = globalThis as unknown as {
+  __agroPrisma?: PrismaClient;
+  __agroPrismaMigrate?: PrismaClient;
+};
 
-/** Prefer Neon pooled URL for runtime; never invent DIRECT_URL. */
-function resolveDatabaseUrl(): string {
-  const candidates = [
-    process.env.DATABASE_URL,
-    process.env.POSTGRES_PRISMA_URL,
-    process.env.POSTGRES_URL,
-    process.env.DATABASE_URL_UNPOOLED,
-    process.env.POSTGRES_URL_NON_POOLING,
-  ];
-  for (const c of candidates) {
-    const url = c?.trim();
-    if (url && isUsablePgUrl(url)) return url;
-  }
-  return "";
-}
-
-function isUsablePgUrl(url: string): boolean {
-  if (!/^postgres(ql)?:\/\//i.test(url)) return false;
-  if (url.includes("YOUR_") || url.includes("user:pass@host")) return false;
-  if (url === "[SENSITIVE]" || url.includes("[SENSITIVE]")) return false;
-  if (
-    /postgres:postgres@localhost/i.test(url) &&
-    process.env.KB_ALLOW_LOCAL_DB !== "1"
-  ) {
-    return false;
-  }
-  return true;
-}
-
-/** True when a real DATABASE_URL is configured for production use. */
+/** True when a pooled/runtime DATABASE_URL is configured. */
 export function isDatabaseConfigured(): boolean {
-  const url = resolveDatabaseUrl();
+  const url = resolveRuntimeDatabaseUrl();
   if (!url) return false;
-  // Prisma reads process.env.DATABASE_URL — normalize Neon aliases.
   if (process.env.DATABASE_URL?.trim() !== url) {
     process.env.DATABASE_URL = url;
   }
@@ -52,11 +29,42 @@ export function getPrisma(): PrismaClient | null {
   return globalForPrisma.__agroPrisma;
 }
 
+/** Separate client for migrations / long writes — uses unpooled when available. */
+export function getMigrationPrisma(): PrismaClient | null {
+  const url = resolveMigrationDatabaseUrl();
+  if (!url) return getPrisma();
+  if (!globalForPrisma.__agroPrismaMigrate) {
+    globalForPrisma.__agroPrismaMigrate = new PrismaClient({
+      datasources: { db: { url } },
+      log: ["error"],
+    });
+  }
+  return globalForPrisma.__agroPrismaMigrate;
+}
+
+export async function hasAnnVectorIndex(): Promise<boolean> {
+  const prisma = getPrisma();
+  if (!prisma) return false;
+  try {
+    const rows = await prisma.$queryRaw<Array<{ idx: string }>>`
+      SELECT indexname AS idx
+      FROM pg_indexes
+      WHERE tablename = 'KnowledgeChunkRow'
+        AND indexdef ILIKE '%hnsw%'
+        AND indexdef ILIKE '%embedding%'
+    `;
+    return rows.length > 0;
+  } catch {
+    return false;
+  }
+}
+
 export async function checkDatabaseHealth(): Promise<{
   database: "connected" | "disconnected" | "not_configured";
   pgvector: "ready" | "missing" | "unknown" | "not_configured";
   knowledgeBaseMode: "database" | "corpus_fallback";
   corpusFallback: boolean;
+  vectorAnnReady?: boolean;
   error?: string;
 }> {
   if (!isDatabaseConfigured()) {
@@ -85,19 +93,20 @@ export async function checkDatabaseHealth(): Promise<{
     let pgvector: "ready" | "missing" | "unknown" = "unknown";
     try {
       const ext = await prisma.$queryRaw<Array<{ extname: string }>>`
-        SELECT extname FROM pg_extension WHERE extname IN ('vector', 'pg_trgm', 'unaccent')
+        SELECT extname FROM pg_extension WHERE extname = 'vector'
       `;
-      const names = new Set(ext.map((e) => e.extname));
-      pgvector = names.has("vector") ? "ready" : "missing";
+      pgvector = ext.length > 0 ? "ready" : "missing";
     } catch {
       pgvector = "unknown";
     }
+    const vectorAnnReady = pgvector === "ready" && (await hasAnnVectorIndex());
 
     return {
       database: "connected",
       pgvector,
       knowledgeBaseMode: "database",
-      corpusFallback: true,
+      corpusFallback: false,
+      vectorAnnReady,
     };
   } catch (err) {
     return {

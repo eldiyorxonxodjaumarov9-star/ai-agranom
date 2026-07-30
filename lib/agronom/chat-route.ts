@@ -1,57 +1,69 @@
 import type { NextRequest } from "next/server";
-import { getCorsHeaders, isOriginAllowed, corsForbidden, jsonWithCors } from "@/lib/agronom/cors";
+import {
+  getCorsHeaders,
+  isOriginAllowed,
+  corsForbidden,
+  jsonWithCors,
+} from "@/lib/agronom/cors";
 import {
   buildRateLimitKey,
-  checkRateLimit,
+  checkRateLimitAsync,
   getClientIp,
   RATE_LIMIT_ERROR,
 } from "@/lib/agronom/rateLimit";
 import { authenticateRequest } from "@/lib/agronom/auth";
+import {
+  readSiteChatCookie,
+  verifySiteChatCookie,
+} from "@/lib/agronom/chat-site-auth";
 import { validateChatRequest } from "@/lib/agronom/chat-validate";
-import { processChat, processChatStream, responseLanguage } from "@/lib/agronom/chat-handler";
+import {
+  processChat,
+  processChatStream,
+  responseLanguage,
+} from "@/lib/agronom/chat-handler";
 import { isRejectionAnswer } from "@/lib/agronom/rejection-detect";
-import { logApiRequest } from "@/lib/agronom/logger";
+import {
+  createRequestId,
+  logApiError,
+  logApiRequest,
+} from "@/lib/agronom/logger";
 import { SERVICE_NAME } from "@/lib/agronom/api-types";
 import { getRejectionMessage } from "@/lib/agronom/language";
 
 function isLikelyNonAgroQuestion(message: string): boolean {
   const m = message.toLowerCase();
-
-  // Known non-agro phrasing used in tests / typical people queries.
   const NON_AGRO_HINTS = [
-    /messi/i, // latin
-    /месси/i, // cyrillic
+    /messi/i,
+    /месси/i,
     /кто\s+такой/i,
     /\bwho\s+is\b/i,
   ];
-
-  // Lightweight agronomy keyword hints in RU/KK/UZ/KY.
   const AGRO_HINTS = [
     /помидор|томат|листь|удобр|пшениц|огурц|яблон|полив|урожай|болезн|вредител/i,
     /қызанақ|жапырақ|суару|тыңайт|ауру|зиянкестер/i,
     /pomidor|barg|o'g'it|kasallik|zararkunanda|sug'or|hosil|bug'doy/i,
     /жалбыра|помидордун|сугар|бадыраң|өсүмдүк|семирткич|кантип/i,
   ];
-
-  const hasAgroHint = AGRO_HINTS.some((r) => r.test(m));
-  if (hasAgroHint) return false;
-
+  if (AGRO_HINTS.some((r) => r.test(m))) return false;
   return NON_AGRO_HINTS.some((r) => r.test(m));
 }
 
 export interface HandleChatOptions {
   request: NextRequest;
   endpoint: string;
-  requireAuth: boolean;
+  /** bearer = AGRO_API_KEY only; site-or-bearer = cookie OR key */
+  authMode: "bearer" | "site-or-bearer";
 }
 
 export async function handleChatPost(
   options: HandleChatOptions
 ): Promise<Response> {
   const start = Date.now();
-  const { request, endpoint, requireAuth } = options;
+  const { request, endpoint, authMode } = options;
   const ip = getClientIp(request.headers);
   const method = "POST";
+  const requestId = createRequestId(request);
 
   const logAndReturn = (
     response: Response,
@@ -61,6 +73,7 @@ export async function handleChatPost(
   ): Response => {
     logApiRequest({
       timestamp: new Date().toISOString(),
+      requestId,
       endpoint,
       method,
       status,
@@ -69,32 +82,86 @@ export async function handleChatPost(
       keyFingerprint,
       isRejection,
     });
-    return response;
+    const headers = new Headers(response.headers);
+    headers.set("X-Request-Id", requestId);
+    return new Response(response.body, {
+      status: response.status,
+      statusText: response.statusText,
+      headers,
+    });
   };
 
   if (!isOriginAllowed(request)) {
     return logAndReturn(corsForbidden(request), 403);
   }
 
-  let keyFingerprint = "internal";
+  let keyFingerprint = "anon";
+  let authorized = false;
 
-  if (requireAuth) {
-    const auth = authenticateRequest(request.headers.get("authorization"));
-
-    if (!auth.ok) {
-      return logAndReturn(
-        jsonWithCors(request, auth.response, 401),
-        401
-      );
-    }
-
+  const auth = authenticateRequest(request.headers.get("authorization"));
+  if (auth.ok) {
+    authorized = true;
     keyFingerprint = auth.keyFingerprint;
+  } else if (authMode === "site-or-bearer") {
+    const cookie = readSiteChatCookie(request);
+    if (verifySiteChatCookie(cookie)) {
+      authorized = true;
+      keyFingerprint = "site_cookie";
+    }
   }
 
-  const rateKey = buildRateLimitKey(ip, keyFingerprint);
-  if (!checkRateLimit(rateKey)) {
+  if (!authorized) {
     return logAndReturn(
-      jsonWithCors(request, RATE_LIMIT_ERROR, 429),
+      jsonWithCors(
+        request,
+        { success: false, error: "Unauthorized" },
+        401,
+        { "X-Request-Id": requestId }
+      ),
+      401
+    );
+  }
+
+  // Rate limit AFTER auth
+  let body: unknown;
+  try {
+    body = await request.json();
+  } catch {
+    return logAndReturn(
+      jsonWithCors(
+        request,
+        { success: false, error: "Invalid JSON body" },
+        400,
+        { "X-Request-Id": requestId }
+      ),
+      400,
+      false,
+      keyFingerprint
+    );
+  }
+
+  const validated = validateChatRequest(body);
+  if (!validated.ok) {
+    return logAndReturn(
+      jsonWithCors(
+        request,
+        { success: false, error: validated.error },
+        validated.status,
+        { "X-Request-Id": requestId }
+      ),
+      validated.status,
+      false,
+      keyFingerprint
+    );
+  }
+
+  const sessionId = validated.data.sessionId;
+  const rateKey = buildRateLimitKey(ip, keyFingerprint, sessionId);
+  if (!(await checkRateLimitAsync(rateKey))) {
+    return logAndReturn(
+      jsonWithCors(request, RATE_LIMIT_ERROR, 429, {
+        "X-Request-Id": requestId,
+      }),
       429,
       false,
       keyFingerprint
@@ -102,122 +169,99 @@ export async function handleChatPost(
   }
 
   try {
-    const body = await request.json();
-    const validated = validateChatRequest(body);
-
-    if (!validated.ok) {
-      return logAndReturn(
-        jsonWithCors(
-          request,
-          { success: false, error: validated.error },
-          validated.status
-        ),
-        validated.status,
-        false,
-        keyFingerprint
-      );
-    }
-
-    const wantsStream =
+    const wantStream =
       request.nextUrl.searchParams.get("stream") === "true" ||
-      request.headers.get("accept") === "text/event-stream";
+      request.headers.get("accept")?.includes("text/event-stream");
 
-    const wantsNonAgroRejection = isLikelyNonAgroQuestion(validated.data.message);
-    if (wantsNonAgroRejection) {
-      const detectedLanguage = responseLanguage(
-        validated.data.language,
-        validated.data.message
-      );
-
-      const answer = getRejectionMessage(detectedLanguage);
-      const payload = {
-        success: true,
-        answer,
-        language: detectedLanguage,
-        service: SERVICE_NAME,
-      };
-
-      if (!wantsStream) {
-        return logAndReturn(jsonWithCors(request, payload, 200), 200, true, keyFingerprint);
-      }
-
-      const encoder = new TextEncoder();
-      const cors = getCorsHeaders(request);
-      let full = "";
-      const stream = new ReadableStream({
-        start(controller) {
-          try {
-            full = answer;
+    if (wantStream) {
+      if (isLikelyNonAgroQuestion(validated.data.message)) {
+        const lang = responseLanguage(
+          validated.data.language,
+          validated.data.message
+        );
+        const msg = getRejectionMessage(lang as "uz");
+        const encoder = new TextEncoder();
+        const stream = new ReadableStream({
+          start(controller) {
             controller.enqueue(
               encoder.encode(
-                `data: ${JSON.stringify({ content: answer })}\n\n`
+                `data: ${JSON.stringify({ content: msg, done: false })}\n\n`
               )
             );
-            controller.enqueue(
-              encoder.encode(
-                `data: ${JSON.stringify({ done: true, answer })}\n\n`
-              )
-            );
-            controller.enqueue(encoder.encode(`data: [DONE]\n\n`));
-          } finally {
-            controller.close();
-          }
-        },
-      });
-
-      return new Response(stream, {
-        headers: {
-          ...cors,
-          "Content-Type": "text/event-stream; charset=utf-8",
-          "Cache-Control": "no-cache, no-transform",
-          Connection: "keep-alive",
-        },
-      });
-    }
-
-    if (wantsStream) {
-      const encoder = new TextEncoder();
-      const cors = getCorsHeaders(request);
-      let streamIsRejection = false;
-
-      const stream = new ReadableStream({
-        async start(controller) {
-          try {
-            const gen = processChatStream(validated.data);
-            let fullAnswer = "";
-
-            while (true) {
-              const { value, done } = await gen.next();
-              if (done) {
-                fullAnswer = value ?? fullAnswer;
-                break;
-              }
-              fullAnswer += value;
-              controller.enqueue(
-                encoder.encode(
-                  `data: ${JSON.stringify({ content: value })}\n\n`
-                )
-              );
-            }
-
-            streamIsRejection = isRejectionAnswer(fullAnswer);
-
             controller.enqueue(
               encoder.encode(
                 `data: ${JSON.stringify({
                   done: true,
+                  answer: msg,
                   success: true,
-                  answer: fullAnswer,
-                  language: responseLanguage(
-                    validated.data.language,
-                    validated.data.message
-                  ),
+                  language: lang,
                   service: SERVICE_NAME,
                 })}\n\n`
               )
             );
             controller.enqueue(encoder.encode("data: [DONE]\n\n"));
-          } catch {
+            controller.close();
+          },
+        });
+        return logAndReturn(
+          new Response(stream, {
+            headers: {
+              ...getCorsHeaders(request),
+              "Content-Type": "text/event-stream; charset=utf-8",
+              "Cache-Control": "no-cache, no-transform",
+              Connection: "keep-alive",
+              "X-Request-Id": requestId,
+            },
+          }),
+          200,
+          true,
+          keyFingerprint
+        );
+      }
+
+      const encoder = new TextEncoder();
+      const stream = new ReadableStream({
+        async start(controller) {
+          try {
+            const gen = processChatStream(validated.data);
+            let full = "";
+            for await (const chunk of gen) {
+              full = chunk;
+              controller.enqueue(
+                encoder.encode(
+                  `data: ${JSON.stringify({ content: chunk, done: false })}\n\n`
+                )
+              );
+            }
+            const lang = responseLanguage(
+              validated.data.language,
+              validated.data.message
+            );
+            controller.enqueue(
+              encoder.encode(
+                `data: ${JSON.stringify({
+                  done: true,
+                  answer: full,
+                  success: true,
+                  language: lang,
+                  service: SERVICE_NAME,
+                })}\n\n`
+              )
+            );
+            controller.enqueue(encoder.encode("data: [DONE]\n\n"));
+            controller.close();
+          } catch (err) {
+            logApiError({
+              timestamp: new Date().toISOString(),
+              requestId,
+              endpoint,
+              method,
+              status: 500,
+              responseTimeMs: Date.now() - start,
+              ip,
+              keyFingerprint,
+              error: err instanceof Error ? err.message : String(err),
+            });
             controller.enqueue(
               encoder.encode(
                 `data: ${JSON.stringify({
@@ -226,56 +270,55 @@ export async function handleChatPost(
                 })}\n\n`
               )
             );
-          } finally {
-            logApiRequest({
-              timestamp: new Date().toISOString(),
-              endpoint,
-              method,
-              status: 200,
-              responseTimeMs: Date.now() - start,
-              ip,
-              keyFingerprint,
-              isRejection: streamIsRejection,
-            });
             controller.close();
           }
         },
       });
 
-      return new Response(stream, {
-        headers: {
-          ...cors,
-          "Content-Type": "text/event-stream; charset=utf-8",
-          "Cache-Control": "no-cache, no-transform",
-          Connection: "keep-alive",
-        },
-      });
-    }
-
-    const result = await processChat(validated.data);
-    const rejection = result.success && isRejectionAnswer(result.answer);
-
-    if (!result.success) {
       return logAndReturn(
-        jsonWithCors(request, result, 500),
-        500,
+        new Response(stream, {
+          headers: {
+            ...getCorsHeaders(request),
+            "Content-Type": "text/event-stream; charset=utf-8",
+            "Cache-Control": "no-cache, no-transform",
+            Connection: "keep-alive",
+            "X-Request-Id": requestId,
+          },
+        }),
+        200,
         false,
         keyFingerprint
       );
     }
 
+    const result = await processChat(validated.data);
+    const status = result.success ? 200 : 500;
+    const rejection =
+      result.success && isRejectionAnswer(result.answer);
     return logAndReturn(
-      jsonWithCors(request, result),
-      200,
-      rejection,
+      jsonWithCors(request, result, status, { "X-Request-Id": requestId }),
+      status,
+      Boolean(rejection),
       keyFingerprint
     );
-  } catch {
+  } catch (err) {
+    logApiError({
+      timestamp: new Date().toISOString(),
+      requestId,
+      endpoint,
+      method,
+      status: 500,
+      responseTimeMs: Date.now() - start,
+      ip,
+      keyFingerprint,
+      error: err instanceof Error ? err.message : String(err),
+    });
     return logAndReturn(
       jsonWithCors(
         request,
         { success: false, error: "AI javob berishda muammo bo'ldi" },
-        500
+        500,
+        { "X-Request-Id": requestId }
       ),
       500,
       false,
@@ -284,7 +327,10 @@ export async function handleChatPost(
   }
 }
 
-export function handleChatOptions(request: NextRequest): Response {
+export async function handleChatOptions(request: NextRequest): Promise<Response> {
+  if (!isOriginAllowed(request)) {
+    return corsForbidden(request);
+  }
   return new Response(null, {
     status: 204,
     headers: getCorsHeaders(request),

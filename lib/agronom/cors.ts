@@ -11,11 +11,27 @@ function getAllowedOrigins(): string[] {
     .filter(Boolean);
 }
 
+/**
+ * Production: missing Origin is rejected (blocks curl OpenAI proxy abuse).
+ * Development: missing Origin allowed for same-origin / tooling.
+ */
 export function isOriginAllowed(request: NextRequest): boolean {
   const origin = request.headers.get("origin");
-  if (!origin) return true; // same-origin / server-to-server
-
   const allowed = getAllowedOrigins();
+
+  if (!origin) {
+    const isProd =
+      process.env.VERCEL_ENV === "production" ||
+      process.env.NODE_ENV === "production";
+    if (isProd) {
+      // Allow same-origin navigations that omit Origin only when Sec-Fetch-Site is same-origin
+      const site = request.headers.get("sec-fetch-site");
+      if (site === "same-origin" || site === "none") return true;
+      return false;
+    }
+    return true;
+  }
+
   return allowed.includes(origin);
 }
 
@@ -27,7 +43,7 @@ export function resolveCorsOrigin(request: NextRequest): string {
     return origin;
   }
 
-  if (!origin) {
+  if (!origin && process.env.NODE_ENV !== "production") {
     return allowed[0] || "";
   }
 
@@ -39,13 +55,15 @@ export function getCorsHeaders(request: NextRequest): Record<string, string> {
 
   const headers: Record<string, string> = {
     "Access-Control-Allow-Methods": "GET, POST, OPTIONS",
-    "Access-Control-Allow-Headers": "Content-Type, Accept, Authorization",
+    "Access-Control-Allow-Headers":
+      "Content-Type, Accept, Authorization, X-Request-Id",
     "Access-Control-Max-Age": "86400",
   };
 
   if (origin) {
     headers["Access-Control-Allow-Origin"] = origin;
     headers["Access-Control-Allow-Credentials"] = "true";
+    headers["Vary"] = "Origin";
   }
 
   return headers;
@@ -54,11 +72,12 @@ export function getCorsHeaders(request: NextRequest): Record<string, string> {
 export function jsonWithCors(
   request: NextRequest,
   body: unknown,
-  status = 200
+  status = 200,
+  extraHeaders?: Record<string, string>
 ): Response {
   return Response.json(body, {
     status,
-    headers: getCorsHeaders(request),
+    headers: { ...getCorsHeaders(request), ...extraHeaders },
   });
 }
 

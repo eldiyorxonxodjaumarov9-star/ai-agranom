@@ -2,11 +2,33 @@
 
 import ReactMarkdown from "react-markdown";
 import remarkGfm from "remark-gfm";
+import rehypeSanitize, { defaultSchema } from "rehype-sanitize";
 
 interface MarkdownMessageProps {
   content: string;
   className?: string;
 }
+
+function safeHref(href?: string): string | undefined {
+  if (!href) return undefined;
+  const t = href.trim().toLowerCase();
+  if (
+    t.startsWith("http://") ||
+    t.startsWith("https://") ||
+    t.startsWith("mailto:")
+  ) {
+    return href;
+  }
+  return undefined;
+}
+
+const schema = {
+  ...defaultSchema,
+  attributes: {
+    ...defaultSchema.attributes,
+    a: [...(defaultSchema.attributes?.a || []), ["href"], ["rel"], ["target"]],
+  },
+};
 
 export default function MarkdownMessage({
   content,
@@ -16,8 +38,8 @@ export default function MarkdownMessage({
     <div className={`markdown-agro ${className}`}>
       <ReactMarkdown
         remarkPlugins={[remarkGfm]}
+        rehypePlugins={[[rehypeSanitize, schema]]}
         components={{
-          // Code blocklarni oddiy matn sifatida ko'rsatish
           pre: ({ children }) => <div className="my-1">{children}</div>,
           code: ({ children }) => (
             <span className="text-inherit">{children}</span>
@@ -35,16 +57,20 @@ export default function MarkdownMessage({
           strong: ({ children }) => (
             <strong className="font-semibold">{children}</strong>
           ),
-          a: ({ href, children }) => (
-            <a
-              href={href}
-              target="_blank"
-              rel="noopener noreferrer"
-              className="text-agro-600 underline hover:text-agro-700"
-            >
-              {children}
-            </a>
-          ),
+          a: ({ href, children }) => {
+            const safe = safeHref(href);
+            if (!safe) return <span>{children}</span>;
+            return (
+              <a
+                href={safe}
+                target="_blank"
+                rel="noopener noreferrer"
+                className="text-agro-600 underline hover:text-agro-700"
+              >
+                {children}
+              </a>
+            );
+          },
         }}
       >
         {content}

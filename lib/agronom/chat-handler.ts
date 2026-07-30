@@ -4,8 +4,8 @@ import {
   type AgronomRequest,
 } from "@/server/services/agronomService";
 import {
-  appendSessionHistory,
-  getSessionHistory,
+  appendSessionHistoryAsync,
+  getSessionHistoryAsync,
 } from "@/lib/agronom/session-store";
 import type { SupportedLanguage } from "@/lib/agronom/api-types";
 import { SERVICE_NAME } from "@/lib/agronom/api-types";
@@ -28,6 +28,7 @@ export interface ProcessChatInput {
   sessionId?: string;
   images?: string[];
   cropMemory?: string;
+  /** Ignored from client — weather must be server-built */
   weather?: string;
   region?: string;
   crop?: string;
@@ -35,7 +36,6 @@ export interface ProcessChatInput {
   imageIds?: string[];
 }
 
-/** API response til maydoni: auto bo‘lsa detect qilinadi (uz/ru/kk/ky/en) */
 export function responseLanguage(
   language: SupportedLanguage,
   message: string
@@ -43,18 +43,41 @@ export function responseLanguage(
   return resolveResponseLanguage(language, message);
 }
 
-function toRequest(input: ProcessChatInput): AgronomRequest {
-  const history = input.sessionId ? getSessionHistory(input.sessionId) : [];
+async function toRequest(input: ProcessChatInput): Promise<AgronomRequest> {
+  const history = input.sessionId
+    ? await getSessionHistoryAsync(input.sessionId)
+    : [];
   const extras: string[] = [];
   if (input.region) extras.push(`Region: ${input.region}`);
   if (input.crop) extras.push(`Crop hint: ${input.crop}`);
   if (input.greenhouse !== undefined) {
     extras.push(`Greenhouse: ${input.greenhouse ? "yes" : "no"}`);
   }
+  // imageIds accepted for forward-compat but unused until storage exists
+  if (input.imageIds?.length) {
+    extras.push(`imageIds_ignored:${input.imageIds.length}`);
+  }
   const message =
     extras.length > 0
       ? `${input.message}\n\n(${extras.join("; ")})`
       : input.message;
+
+  // Never pass client weather; optionally attach server weather for known region ids
+  let weather: string | undefined;
+  try {
+    if (input.region) {
+      const { fetchWeatherByRegion, weatherPromptBlock, REGIONS } = await import(
+        "@/lib/platform/weather"
+      );
+      const id = REGIONS.find((r) => r.id === input.region)?.id;
+      if (id) {
+        const snap = await fetchWeatherByRegion(id);
+        weather = weatherPromptBlock(snap, "uz");
+      }
+    }
+  } catch {
+    weather = undefined;
+  }
 
   return {
     message,
@@ -62,7 +85,7 @@ function toRequest(input: ProcessChatInput): AgronomRequest {
     language: input.language,
     images: input.images,
     cropMemory: input.cropMemory,
-    weather: input.weather,
+    weather,
   };
 }
 
@@ -99,10 +122,10 @@ export async function processChat(
   input: ProcessChatInput
 ): Promise<ChatApiSuccessResponse | ChatApiErrorResponse> {
   try {
-    const { answer, rag } = await generateAgronomAnswer(toRequest(input));
+    const { answer, rag } = await generateAgronomAnswer(await toRequest(input));
 
     if (input.sessionId) {
-      appendSessionHistory(input.sessionId, input.message, answer);
+      await appendSessionHistoryAsync(input.sessionId, input.message, answer);
     }
 
     return enrichResponse(
@@ -121,7 +144,7 @@ export async function* processChatStream(
 ): AsyncGenerator<string, string, unknown> {
   let fullAnswer = "";
 
-  const gen = streamAgronomAnswer(toRequest(input));
+  const gen = streamAgronomAnswer(await toRequest(input));
   let next = await gen.next();
   while (!next.done) {
     fullAnswer += next.value;
@@ -129,8 +152,8 @@ export async function* processChatStream(
     next = await gen.next();
   }
 
-  if (input.sessionId && fullAnswer) {
-    appendSessionHistory(input.sessionId, input.message, fullAnswer);
+  if (input.sessionId) {
+    await appendSessionHistoryAsync(input.sessionId, input.message, fullAnswer);
   }
 
   return fullAnswer;

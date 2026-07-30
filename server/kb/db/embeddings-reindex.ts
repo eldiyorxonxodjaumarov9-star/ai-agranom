@@ -241,6 +241,17 @@ export async function reindexEmbeddings(options?: {
               embeddingJson: wrapEmbedding(row.checksum, vector) as never,
             },
           });
+          // Keep native pgvector column in sync (additive; ignore if column missing)
+          try {
+            const lit = `[${vector.join(",")}]`;
+            await prisma.$executeRawUnsafe(
+              `UPDATE "KnowledgeChunkRow" SET embedding = $1::vector WHERE id = $2`,
+              lit,
+              row.id
+            );
+          } catch {
+            /* column may not exist until migrate */
+          }
           await prisma.embeddingJob.create({
             data: {
               chunkId: row.id,

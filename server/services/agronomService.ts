@@ -1,5 +1,8 @@
 import type { ChatCompletionMessageParam } from "openai/resources/chat/completions";
-import { buildAgronomPrompt } from "../prompts/system";
+import {
+  buildAgronomPrompt,
+  buildUserContextBlock,
+} from "../prompts/system";
 import { retrieveContextWithMeta } from "@/server/kb/provider";
 import type { RagRetrievalResult } from "@/server/kb/types";
 import type { SupportedLanguage } from "@/lib/agronom/api-types";
@@ -20,6 +23,7 @@ export interface AgronomRequest {
   language?: SupportedLanguage;
   images?: string[];
   cropMemory?: string;
+  /** Server-generated weather only — never trust client weather as system */
   weather?: string;
 }
 
@@ -35,7 +39,8 @@ function buildMessages(
   language: SupportedLanguage = "uz",
   extras?: { cropMemory?: string; weather?: string; images?: string[] }
 ): ChatCompletionMessageParam[] {
-  const system = buildAgronomPrompt(ragContext, language, {
+  const system = buildAgronomPrompt(ragContext, language);
+  const userContext = buildUserContextBlock({
     cropMemory: extras?.cropMemory,
     weather: extras?.weather,
   });
@@ -48,6 +53,10 @@ function buildMessages(
     })),
   ];
 
+  const textBody = userContext
+    ? `${message}\n\n${userContext}`
+    : message;
+
   const imgs = extras?.images?.slice(0, 10) || [];
   if (imgs.length > 0) {
     messages.push({
@@ -56,7 +65,7 @@ function buildMessages(
         {
           type: "text",
           text:
-            message +
+            textBody +
             `\n\n(${imgs.length} ta rasm yuborildi. Har birini alohida tahlil qil.)`,
         },
         ...imgs.map((url) => ({
@@ -66,7 +75,7 @@ function buildMessages(
       ],
     });
   } else {
-    messages.push({ role: "user", content: message });
+    messages.push({ role: "user", content: textBody });
   }
 
   return messages;

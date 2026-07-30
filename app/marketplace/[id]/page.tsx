@@ -9,12 +9,13 @@ export function generateStaticParams() {
   return MARKETPLACE_CATALOG.map((p) => ({ id: p.id }));
 }
 
-export default function MarketplaceProductPage({
+export default async function MarketplaceProductPage({
   params,
 }: {
-  params: { id: string };
+  params: Promise<{ id: string }>;
 }) {
-  const product = getProductById(params.id);
+  const { id } = await params;
+  const product = getProductById(id);
   if (!product) notFound();
 
   return <ProductPageClient product={product} />;

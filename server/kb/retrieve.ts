@@ -5,7 +5,7 @@ import type {
   RetrievedChunk,
 } from "./types";
 import { getVerifiedChunks } from "./store";
-import { cosineSimilarity, ensureChunkEmbeddings } from "./embeddings";
+import { cosineSimilarity } from "./embeddings";
 import {
   searchChunksByVector,
   searchChunksInDb,
@@ -88,21 +88,27 @@ function rankChunks(
   embeddings: Record<string, number[]>,
   queryVec: number[] | null,
   options?: { limit?: number; language?: string; cropHint?: string },
-  retrievalModes: string[] = []
+  retrievalModes: string[] = [],
+  precomputedSim?: Record<string, number>
 ): RagRetrievalResult {
   const limit = options?.limit ?? 8;
 
   const scored: RetrievedChunk[] = chunks.filter(isEligibleForContext).map((chunk) => {
     const kw = keywordScore(chunk, tokens);
     let vec = 0;
-    const emb = chunk.embedding || embeddings[chunk.id];
-    if (queryVec && emb) {
-      vec = cosineSimilarity(queryVec, emb);
+    const pre = precomputedSim?.[chunk.id];
+    if (typeof pre === "number") {
+      vec = pre;
+    } else {
+      const emb = chunk.embedding || embeddings[chunk.id];
+      if (queryVec && emb) {
+        vec = cosineSimilarity(queryVec, emb);
+      }
     }
 
     // Vector-first weighting when embeddings available
     let score =
-      emb && queryVec
+      vec > 0 || (chunk.embedding || embeddings[chunk.id])
         ? vec * 0.55 + kw * 0.2 + chunk.reliabilityScore * 0.1
         : kw * 0.45 + chunk.reliabilityScore * 0.15;
 
@@ -155,8 +161,8 @@ function rankChunks(
     .sort((a, b) => {
       const qa = (a.qualityScore ?? 70) / 100;
       const qb = (b.qualityScore ?? 70) / 100;
-      const ra = a.score * 0.8 + qb * 0.05 + (a.vectorScore ?? 0) * 0.15;
-      const rb = b.score * 0.8 + qa * 0.05 + (b.vectorScore ?? 0) * 0.15;
+      const ra = a.score * 0.8 + qa * 0.05 + (a.vectorScore ?? 0) * 0.15;
+      const rb = b.score * 0.8 + qb * 0.05 + (b.vectorScore ?? 0) * 0.15;
       return rb - ra;
     })
     .slice(0, limit);
@@ -201,6 +207,18 @@ export async function retrieveKnowledge(
   let dbUsed = false;
   const modes: string[] = [];
 
+  // Single query embedding for the whole request
+  let queryVec: number[] | null = null;
+  try {
+    if (isDatabaseConfigured()) {
+      const { embedTexts } = await import("./embeddings");
+      const [v] = await embedTexts([query]);
+      queryVec = v ?? null;
+    }
+  } catch {
+    queryVec = null;
+  }
+
   if (isDatabaseConfigured()) {
     const exact = await searchExactScientificOrEppo(query, {
       limit: 24,
@@ -215,6 +233,7 @@ export async function retrieveKnowledge(
       limit: 40,
       language: options?.language,
       cropHint: options?.cropHint,
+      queryVec: queryVec || undefined,
     });
     if (vector && vector.length) {
       candidates.push(...vector);
@@ -253,25 +272,21 @@ export async function retrieveKnowledge(
   }
 
   const embeddingMap: Record<string, number[]> = {};
+  const precomputedSim: Record<string, number> = {};
   for (const c of chunks) {
+    const sim = (c as KnowledgeChunk & { _sim?: number })._sim;
+    if (typeof sim === "number") precomputedSim[c.id] = sim;
     if (c.embedding?.length) embeddingMap[c.id] = c.embedding;
   }
-  const missing = chunks.filter((c) => !embeddingMap[c.id]);
-  if (missing.length && missing.length <= 64) {
-    const fileMap = await ensureChunkEmbeddings(missing);
-    Object.assign(embeddingMap, fileMap);
-  }
 
-  let queryVec: number[] | null = null;
-  try {
-    if (Object.keys(embeddingMap).length > 0) {
-      const { embedTexts } = await import("./embeddings");
-      const [v] = await embedTexts([query]);
-      queryVec = v;
-    }
-  } catch {
-    queryVec = null;
-  }
-
-  return rankChunks(query, chunks, tokens, embeddingMap, queryVec, options, modes);
+  return rankChunks(
+    query,
+    chunks,
+    tokens,
+    embeddingMap,
+    queryVec,
+    options,
+    modes,
+    precomputedSim
+  );
 }

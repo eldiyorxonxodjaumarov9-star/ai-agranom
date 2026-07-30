@@ -43,7 +43,7 @@ export interface ChatApiErrorResponse {
 export type ChatApiResponse = ChatApiSuccessResponse | ChatApiErrorResponse;
 
 export interface HealthApiResponse {
-  status: "ok";
+  status: "ok" | "degraded" | "error";
   service: typeof SERVICE_NAME;
   version: string;
   /** Optional Phase 3 KB diagnostics — older clients ignore */

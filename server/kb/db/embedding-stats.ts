@@ -1,4 +1,4 @@
-import { getPrisma, isDatabaseConfigured } from "./client";
+import { getPrisma, isDatabaseConfigured, hasAnnVectorIndex } from "./client";
 
 export type EmbeddingStats = {
   totalChunks: number;
@@ -17,7 +17,6 @@ export type EmbeddingStats = {
 const EMBED_MODEL = process.env.OPENAI_EMBEDDING_MODEL || "text-embedding-3-small";
 const CHECKPOINT_KIND = "embedding_reindex";
 
-/** Count all non-deleted chunks (full unique DB corpus). */
 export async function getEmbeddingStats(): Promise<EmbeddingStats | null> {
   if (!isDatabaseConfigured()) return null;
   const prisma = getPrisma();
@@ -26,15 +25,18 @@ export async function getEmbeddingStats(): Promise<EmbeddingStats | null> {
   try {
     const baseWhere = { deletedAt: null as null };
 
-    const [totalChunks, embedded, failedJobs, lastJob, failedRecent] =
+    const [totalChunks, embeddedJson, embeddedVec, failedJobs, lastJob, failedRecent] =
       await Promise.all([
         prisma.knowledgeChunkRow.count({ where: baseWhere }),
         prisma.knowledgeChunkRow.count({
-          where: {
-            ...baseWhere,
-            embeddingJson: { not: null as never },
-          },
+          where: { ...baseWhere, embeddingJson: { not: null as never } },
         }),
+        prisma
+          .$queryRaw<Array<{ c: bigint }>>`
+          SELECT COUNT(*)::bigint AS c FROM "KnowledgeChunkRow"
+          WHERE "deletedAt" IS NULL AND embedding IS NOT NULL
+        `
+          .catch(() => [{ c: BigInt(0) }]),
         prisma.embeddingJob.count({ where: { status: "failed" } }),
         prisma.importJob.findFirst({
           where: { kind: CHECKPOINT_KIND },
@@ -48,20 +50,14 @@ export async function getEmbeddingStats(): Promise<EmbeddingStats | null> {
         }),
       ]);
 
+    const embeddedNative = Number(embeddedVec[0]?.c || 0);
+    const embedded = Math.max(embeddedJson, embeddedNative);
     const pending = Math.max(0, totalChunks - embedded);
     const coveragePercent =
       totalChunks === 0 ? 0 : Math.round((embedded / totalChunks) * 1000) / 10;
 
-    let vectorIndexReady = false;
-    try {
-      const ext = await prisma.$queryRaw<Array<{ extname: string }>>`
-        SELECT extname FROM pg_extension WHERE extname = 'vector'
-      `;
-      vectorIndexReady =
-        ext.length > 0 && pending === 0 && totalChunks > 0 && embedded > 0;
-    } catch {
-      vectorIndexReady = pending === 0 && totalChunks > 0 && embedded > 0;
-    }
+    const ann = await hasAnnVectorIndex();
+    const vectorIndexReady = ann && embeddedNative > 0;
 
     return {
       totalChunks,

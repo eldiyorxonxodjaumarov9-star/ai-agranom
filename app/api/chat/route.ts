@@ -3,11 +3,9 @@ import { handleChatOptions, handleChatPost } from "@/lib/agronom/chat-route";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
+export const maxDuration = 60;
 
-/**
- * Sayt ichki chat proxy — AGRO_API_KEY brauzerga chiqmaydi.
- * Server tomonida processChat to'g'ridan-to'g'ri chaqiriladi.
- */
+/** Site chat: httpOnly site cookie OR Bearer AGRO_API_KEY. Not an open proxy. */
 export async function OPTIONS(request: NextRequest) {
   return handleChatOptions(request);
 }
@@ -16,6 +14,6 @@ export async function POST(request: NextRequest) {
   return handleChatPost({
     request,
     endpoint: "/api/chat",
-    requireAuth: false,
+    authMode: "site-or-bearer",
   });
 }

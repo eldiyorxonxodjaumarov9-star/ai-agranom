@@ -1,6 +1,6 @@
 import type { KnowledgeChunk } from "../types";
 import { getPrisma, isDatabaseConfigured } from "./client";
-import { cosineSimilarity, embedTexts } from "../embeddings";
+import { embedTexts } from "../embeddings";
 import { extractEmbeddingVector } from "./embedding-json";
 
 function mapRow(row: {
@@ -97,74 +97,83 @@ export async function searchExactScientificOrEppo(
 }
 
 /**
- * Vector-first candidate retrieval using stored embeddingJson + query embedding.
- * Does not call OpenAI for chunk embeddings — only for the query vector.
+ * pgvector ANN search — never loads 2500 JSON embeddings into Node.
+ * Optional queryVec reuses a single embed per request.
  */
 export async function searchChunksByVector(
   query: string,
-  options?: { limit?: number; language?: string; cropHint?: string }
+  options?: {
+    limit?: number;
+    language?: string;
+    cropHint?: string;
+    queryVec?: number[];
+  }
 ): Promise<KnowledgeChunk[] | null> {
   if (!isDatabaseConfigured()) return null;
   const prisma = getPrisma();
   if (!prisma) return null;
 
   try {
-    const [queryVec] = await embedTexts([query]);
+    let queryVec = options?.queryVec;
+    if (!queryVec?.length) {
+      const [v] = await embedTexts([query]);
+      queryVec = v;
+    }
     if (!queryVec?.length) return [];
 
-    const rows = await prisma.knowledgeChunkRow.findMany({
-      where: {
-        ...RAG_WHERE,
-        embeddingJson: { not: null as never },
-        ...(options?.language ? { language: options.language } : {}),
-      },
-      take: 2500,
-      orderBy: { qualityScore: "desc" },
-      select: {
-        id: true,
-        entityType: true,
-        entityId: true,
-        language: true,
-        title: true,
-        content: true,
-        keywords: true,
-        cropIds: true,
-        plantParts: true,
-        regions: true,
-        sourceId: true,
-        sourceUrl: true,
-        sourceTitle: true,
-        organization: true,
-        reliabilityScore: true,
-        qualityScore: true,
-        status: true,
-        version: true,
-        updatedAt: true,
-        checksum: true,
-        embeddingJson: true,
-      },
-    });
+    const limit = Math.min(80, Math.max(1, options?.limit ?? 40));
+    const vectorLiteral = `[${queryVec.join(",")}]`;
+    const lang = options?.language || null;
 
-    let mapped = rows.map(mapRow);
+    const idRows = await prisma.$queryRawUnsafe<Array<{ id: string; dist: number }>>(
+      `
+      SELECT id, (embedding <=> $1::vector) AS dist
+      FROM "KnowledgeChunkRow"
+      WHERE "deletedAt" IS NULL
+        AND status = 'VERIFIED'::"KbStatus"
+        AND "qualityScore" >= 70
+        AND embedding IS NOT NULL
+        AND ($2::text IS NULL OR language = $2)
+      ORDER BY embedding <=> $1::vector
+      LIMIT $3
+      `,
+      vectorLiteral,
+      lang,
+      limit * 2
+    );
+
+    if (!idRows.length) return [];
+
+    const ids = idRows.map((r) => r.id);
+    const rows = await prisma.knowledgeChunkRow.findMany({
+      where: { id: { in: ids }, ...RAG_WHERE },
+    });
+    const byId = new Map(rows.map((r) => [r.id, mapRow(r)]));
+    let ordered = ids
+      .map((id) => byId.get(id))
+      .filter((c): c is KnowledgeChunk => Boolean(c));
+
     if (options?.cropHint) {
       const hint = options.cropHint.toLowerCase();
-      mapped = mapped.filter(
+      ordered = ordered.filter(
         (c) =>
           c.cropIds?.some((id) => id.toLowerCase().includes(hint)) ||
           c.title.toLowerCase().includes(hint)
       );
     }
 
-    const scored = mapped
-      .map((c) => ({
-        chunk: c,
-        sim: c.embedding ? cosineSimilarity(queryVec, c.embedding) : 0,
-      }))
-      .filter((x) => x.sim > 0.22)
-      .sort((a, b) => b.sim - a.sim)
-      .slice(0, options?.limit ?? 40);
+    // Attach cosine similarity ≈ 1 - distance for ranking
+    const distMap = new Map(idRows.map((r) => [r.id, r.dist]));
+    for (const c of ordered) {
+      const dist = distMap.get(c.id);
+      if (typeof dist === "number" && Number.isFinite(dist)) {
+        (c as KnowledgeChunk & { _sim?: number })._sim = Math.max(0, 1 - dist);
+      }
+    }
 
-    return scored.map((s) => s.chunk);
+    return ordered
+      .filter((c) => ((c as KnowledgeChunk & { _sim?: number })._sim ?? 0) > 0.22)
+      .slice(0, limit);
   } catch (err) {
     console.warn(
       "[kb/db] searchChunksByVector failed:",
