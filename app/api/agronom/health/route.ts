@@ -9,6 +9,7 @@ import {
   getRecordCounts,
 } from "@/server/kb/db/client";
 import { corpusStats } from "@/server/kb/corpus/build";
+import { getEmbeddingStats } from "@/server/kb/db/embedding-stats";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
@@ -22,6 +23,7 @@ export async function GET(request: NextRequest) {
   const dbHealth = await checkDatabaseHealth();
   const dbCounts = await getRecordCounts();
   const corpus = corpusStats();
+  const embeddings = await getEmbeddingStats();
 
   const response: HealthApiResponse = {
     status: "ok",
@@ -47,6 +49,17 @@ export async function GET(request: NextRequest) {
           chunks: corpus.totalChunks,
           verifiedProducts: 0,
         },
+    embeddings: embeddings
+      ? {
+          totalChunks: embeddings.totalChunks,
+          embedded: embeddings.embedded,
+          pending: embeddings.pending,
+          failed: embeddings.failed,
+          coveragePercent: embeddings.coveragePercent,
+          vectorIndexReady: embeddings.vectorIndexReady,
+          lastReindexAt: embeddings.lastReindexAt,
+        }
+      : undefined,
   };
 
   logApiRequest({

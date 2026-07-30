@@ -1,26 +1,14 @@
 [
   {
-    "externalId": "kz-ppp-placeholder-copper",
+    "externalId": "kz-ppp-upload-required",
     "url": "https://www.gov.kz",
-    "title": "KZ PPP registry — copper fungicides (placeholder entry)",
+    "title": "KZ PPP registry — admin upload required (no public bulk feed)",
     "entityType": "product",
     "language": "ru",
-    "keywords": ["медь", "фунгицид", "реестр", "Казахстан"],
-    "cropIds": ["tomato", "potato"],
-    "body": "Казахстанский официальный реестр средств защиты растений: рекомендации по конкретным торговым названиям и дозам допустимы только после сверки актуальной записи реестра и этикетки. Эта curated запись — заготовка Phase 2; химические дозы не выдумывать. Статус импорта: NEEDS_REVIEW до проверки агрономом.",
+    "keywords": ["реестр", "СЗР", "Казахстан", "PPP", "NEEDS_REVIEW"],
+    "cropIds": [],
+    "body": "Официальный массовый machine-readable feed казахстанского реестра СЗР в открытом API на момент Phase 4 не подключён. Импорт только через официальный CSV/XLSX/PDF/JSON, загруженный администратором: npm run kb:import-kz-ppp -- --file ./export.csv. Google scraping запрещён. Продукты остаются NEEDS_REVIEW до проверки registration number, label URL и crop/target match. Дозы не выдумываются.",
     "license": "official_public_registry",
-    "publishedAt": "2025-01-01"
-  },
-  {
-    "externalId": "kz-ppp-placeholder-bt",
-    "url": "https://www.gov.kz",
-    "title": "KZ PPP registry — Bacillus thuringiensis products (placeholder)",
-    "entityType": "product",
-    "language": "ru",
-    "keywords": ["Bt", "биозащита", "реестр", "инсектицид"],
-    "cropIds": ["cabbage", "tomato"],
-    "body": "Биологические препараты на основе Bacillus thuringiensis могут применяться только если конкретный продукт зарегистрирован в Казахстане на целевую культуру и вредителя. Дозу брать только с этикетки. Pending agronom verification.",
-    "license": "official_public_registry",
-    "publishedAt": "2025-01-01"
+    "publishedAt": "2026-07-30"
   }
 ]

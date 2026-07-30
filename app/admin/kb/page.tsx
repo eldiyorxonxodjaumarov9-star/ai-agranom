@@ -8,7 +8,9 @@ type TabId =
   | "duplicates"
   | "conflicts"
   | "pending"
-  | "source-status";
+  | "source-status"
+  | "embeddings"
+  | "products";
 
 const TABS: { id: TabId; label: string }[] = [
   { id: "sync-jobs", label: "Sync jobs" },
@@ -17,6 +19,8 @@ const TABS: { id: TabId; label: string }[] = [
   { id: "conflicts", label: "Conflicts" },
   { id: "pending", label: "Pending review" },
   { id: "source-status", label: "Source status" },
+  { id: "embeddings", label: "Embeddings" },
+  { id: "products", label: "Products / PPP" },
 ];
 
 export default function AdminKbPage() {
@@ -51,10 +55,29 @@ export default function AdminKbPage() {
     setLoading(true);
     setError(null);
     try {
-      const res = await fetch(`/api/admin/kb?view=${tab}`, { headers });
-      const json = await res.json();
-      if (!res.ok) throw new Error(json.error || "Xato");
-      setData(json);
+      if (tab === "embeddings" || tab === "products") {
+        const res = await fetch("/api/admin/kb/actions", { headers });
+        const json = await res.json();
+        if (!res.ok) throw new Error(json.error || "Xato");
+        setData(
+          tab === "embeddings"
+            ? {
+                embeddings: json.dashboard?.embeddings,
+                phase4: json.dashboard?.phase4,
+                database: json.dashboard?.database,
+              }
+            : {
+                products: json.dashboard?.products,
+                recordCounts: json.dashboard?.recordCounts,
+                notes: json.dashboard?.notes,
+              }
+        );
+      } else {
+        const res = await fetch(`/api/admin/kb?view=${tab}`, { headers });
+        const json = await res.json();
+        if (!res.ok) throw new Error(json.error || "Xato");
+        setData(json);
+      }
     } catch (e) {
       setError(e instanceof Error ? e.message : "Xato");
       setData(null);
@@ -91,9 +114,10 @@ export default function AdminKbPage() {
           <p className="text-sm text-ink-muted">Agro Olam · Knowledge Base Admin</p>
           <h1 className="text-3xl font-semibold tracking-tight">KB Sync & Review</h1>
           <p className="text-sm text-ink-muted max-w-2xl">
-            Phase 2: rasmiy adapter sync, failed imports, duplicates, conflicts va
-            pending review. Token faqat sessionStorage’da — frontend bundle’ga
-            chiqmaydi.
+            Phase 4: embedding coverage, product verification queue, KZ PPP admin
+            import, cron/source health. Token faqat sessionStorage’da. Embedding
+            reindex Vercel request ichida emas — CLI:{" "}
+            <code className="text-xs">npm run kb:reindex -- --mode embeddings</code>
           </p>
         </header>
 

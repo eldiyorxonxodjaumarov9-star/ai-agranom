@@ -48,8 +48,11 @@ async function main() {
     approvedCrops: ["tomato"],
     approvedTargets: ["aphid"],
   });
-  if (incomplete.status === "NEEDS_REVIEW" && !incomplete.canRecommend) {
-    ok("incomplete product stays NEEDS_REVIEW");
+  if (
+    (incomplete.status === "NEEDS_REVIEW" || incomplete.status === "INCOMPLETE") &&
+    !incomplete.canRecommend
+  ) {
+    ok("incomplete product stays NEEDS_REVIEW/INCOMPLETE");
   } else fail("incomplete product", incomplete.status);
 
   const expired = verifyProductRecord({

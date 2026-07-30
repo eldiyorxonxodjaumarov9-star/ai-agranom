@@ -3,12 +3,14 @@ import type { KnowledgeChunk, KbStatus } from "../types";
 import { CROPS, type LangMap } from "./crops";
 import { DISEASES } from "./diseases";
 import { DISEASES_EXTRA } from "./diseases-extra";
+import { DISEASES_PHASE4 } from "./diseases-phase4";
 import { PESTS } from "./pests";
 import { PESTS_EXTRA } from "./pests-extra";
+import { PESTS_PHASE4 } from "./pests-phase4";
 import { ACTIVE_INGREDIENTS } from "./products";
 
-const ALL_DISEASES = [...DISEASES, ...DISEASES_EXTRA];
-const ALL_PESTS = [...PESTS, ...PESTS_EXTRA];
+const ALL_DISEASES = [...DISEASES, ...DISEASES_EXTRA, ...DISEASES_PHASE4];
+const ALL_PESTS = [...PESTS, ...PESTS_EXTRA, ...PESTS_PHASE4];
 
 const NOW = "2026-07-30T00:00:00.000Z";
 
@@ -292,6 +294,33 @@ export function buildCorpusChunks(): KnowledgeChunk[] {
           reliabilityScore: 0.88,
           status: "VERIFIED",
           qualityScore: 76,
+        })
+      );
+
+      // Scouting timing (derived from conditions + early symptoms; no invented spray calendar)
+      out.push(
+        chunk({
+          id: `corp-scout-${d.id}-${lang}`,
+          entityType: "disease",
+          entityId: `scout-${d.id}`,
+          language: lang,
+          title: `Scouting: ${name}`,
+          content: [
+            `Scouting guidance for ${name} (${d.scientificName}).`,
+            `Watch when: ${d.conditions[lang]}`,
+            `First signs to record: ${d.earlySymptoms[lang]}`,
+            `Increase scouting frequency after rain, irrigation events, or canopy closure; photograph lesions with crop and plant-part context.`,
+            `Do not invent spray calendars or doses from this note.`,
+            disclaimer(lang),
+          ].join(" "),
+          keywords: [d.id, "scouting", "monitoring", "kuzatuv", ...d.cropIds],
+          cropIds: d.cropIds,
+          sourceUrl: d.sourceUrl,
+          sourceTitle: `${d.organization} scouting — ${d.scientificName}`,
+          organization: d.organization,
+          reliabilityScore: 0.87,
+          status: "VERIFIED",
+          qualityScore: 74,
         })
       );
     }

@@ -59,4 +59,14 @@ export interface HealthApiResponse {
     verifiedProducts: number;
   };
   databaseUrlRequired?: boolean;
+  /** Phase 4 embedding diagnostics — older clients ignore */
+  embeddings?: {
+    totalChunks: number;
+    embedded: number;
+    pending: number;
+    failed: number;
+    coveragePercent: number;
+    vectorIndexReady: boolean;
+    lastReindexAt: string | null;
+  };
 }

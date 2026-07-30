@@ -6,8 +6,10 @@ import { getPrisma, isDatabaseConfigured } from "./client";
 import { CROPS } from "../corpus/crops";
 import { DISEASES } from "../corpus/diseases";
 import { DISEASES_EXTRA } from "../corpus/diseases-extra";
+import { DISEASES_PHASE4 } from "../corpus/diseases-phase4";
 import { PESTS } from "../corpus/pests";
 import { PESTS_EXTRA } from "../corpus/pests-extra";
+import { PESTS_PHASE4 } from "../corpus/pests-phase4";
 import { ACTIVE_INGREDIENTS } from "../corpus/products";
 import { buildCorpusChunks } from "../corpus/build";
 
@@ -52,15 +54,19 @@ export async function migrateCorpusToDatabase(): Promise<CorpusMigrateReport> {
   };
 
   const force = process.env.FORCE_CORPUS_MIGRATE === "1";
+  const expectedChunks = buildCorpusChunks().length;
   if (!force) {
     const existing = await prisma.knowledgeChunkRow.count();
-    if (existing > 0) {
+    if (existing >= expectedChunks) {
       report.skipped = existing;
       console.info(
-        `[migrate-corpus] skip — ${existing} chunks already present (FORCE_CORPUS_MIGRATE=1 to re-run)`
+        `[migrate-corpus] skip — ${existing}/${expectedChunks} chunks present (FORCE_CORPUS_MIGRATE=1 to re-run)`
       );
       return report;
     }
+    console.info(
+      `[migrate-corpus] expanding — ${existing}/${expectedChunks} chunks; upserting…`
+    );
   }
 
   const batches = 50;
@@ -109,8 +115,8 @@ export async function migrateCorpusToDatabase(): Promise<CorpusMigrateReport> {
     });
   }
 
-  const ALL_DISEASES = [...DISEASES, ...DISEASES_EXTRA];
-  const ALL_PESTS = [...PESTS, ...PESTS_EXTRA];
+  const ALL_DISEASES = [...DISEASES, ...DISEASES_EXTRA, ...DISEASES_PHASE4];
+  const ALL_PESTS = [...PESTS, ...PESTS_EXTRA, ...PESTS_PHASE4];
 
   // Crops
   for (let i = 0; i < CROPS.length; i += batches) {

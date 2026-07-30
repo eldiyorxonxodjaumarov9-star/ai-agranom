@@ -10,6 +10,11 @@ import {
   loadFailedImports,
 } from "@/server/kb/sync/persist";
 import { corpusStats } from "@/server/kb/corpus/build";
+import {
+  checkDatabaseHealth,
+  getRecordCounts,
+} from "@/server/kb/db/client";
+import { getEmbeddingStats } from "@/server/kb/db/embedding-stats";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
@@ -34,6 +39,9 @@ export async function POST(request: NextRequest) {
 
     if (action === "dashboard") {
       const chunks = loadChunks();
+      const dbCounts = await getRecordCounts();
+      const embeddings = await getEmbeddingStats();
+      const dbHealth = await checkDatabaseHealth();
       return NextResponse.json({
         success: true,
         dashboard: {
@@ -46,6 +54,21 @@ export async function POST(request: NextRequest) {
           failed: loadFailedImports().length,
           corpus: corpusStats(),
           queue: getImportQueue().slice(-10),
+          database: dbHealth,
+          recordCounts: dbCounts,
+          embeddings,
+          products: dbCounts
+            ? {
+                total: dbCounts.productsTotal,
+                verified: dbCounts.verifiedProducts,
+                needsReview: dbCounts.productsNeedsReview,
+              }
+            : null,
+          notes: {
+            embeddingReindex:
+              "Run locally/CI: npm run kb:reindex -- --mode embeddings (not inside Vercel request)",
+            kzImport: "npm run kb:import-kz-ppp -- --file ./official-export.csv",
+          },
         },
       });
     }
@@ -147,6 +170,9 @@ export async function GET(request: NextRequest) {
     );
   }
   const chunks = loadChunks();
+  const dbCounts = await getRecordCounts();
+  const embeddings = await getEmbeddingStats();
+  const dbHealth = await checkDatabaseHealth();
   return NextResponse.json({
     success: true,
     dashboard: {
@@ -159,6 +185,22 @@ export async function GET(request: NextRequest) {
       failed: loadFailedImports().length,
       corpus: corpusStats(),
       queue: getImportQueue().slice(-20),
+      database: dbHealth,
+      recordCounts: dbCounts,
+      embeddings,
+      products: dbCounts
+        ? {
+            total: dbCounts.productsTotal,
+            verified: dbCounts.verifiedProducts,
+            needsReview: dbCounts.productsNeedsReview,
+          }
+        : null,
+      phase4: {
+        embeddingCoverage: embeddings?.coveragePercent ?? 0,
+        vectorIndexReady: embeddings?.vectorIndexReady ?? false,
+        lastReindexAt: embeddings?.lastReindexAt ?? null,
+        productVerificationQueue: dbCounts?.productsNeedsReview ?? 0,
+      },
     },
   });
 }
