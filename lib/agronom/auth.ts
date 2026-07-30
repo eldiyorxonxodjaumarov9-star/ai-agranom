@@ -21,8 +21,10 @@ export function getAgroApiKeyStatus(): "detected" | "missing" {
 }
 
 function readAgroApiKey(): string {
-  // Bracket access + runtime read — avoid build-time secret inlining.
-  const raw = process.env["AGRO_API_KEY"];
+  // Concatenated name prevents Next.js/webpack build-time inlining of the secret.
+  const name = ["AGRO", "API", "KEY"].join("_");
+  const envBag = process.env as NodeJS.ProcessEnv;
+  const raw = envBag[name];
   if (typeof raw !== "string") return "";
   return raw
     .replace(/^\uFEFF/, "") // BOM
@@ -45,8 +47,9 @@ export function extractBearerToken(
 
 export function verifyApiKey(token: string | null): boolean {
   const expected = readAgroApiKey();
+  const status = expected && !PLACEHOLDER_KEYS.has(expected) ? "detected" : "missing";
 
-  if (!expected || PLACEHOLDER_KEYS.has(expected)) {
+  if (status === "missing") {
     console.error("[auth] AGRO_API_KEY env missing");
     return false;
   }
@@ -55,8 +58,32 @@ export function verifyApiKey(token: string | null): boolean {
 
   const a = Buffer.from(token, "utf8");
   const b = Buffer.from(expected, "utf8");
-  if (a.length !== b.length) return false;
-  return timingSafeEqual(a, b);
+  if (a.length !== b.length) {
+    // Length-only diagnostic — never log secret values
+    console.error(
+      JSON.stringify({
+        level: "auth_fail",
+        agroApiKey: "detected",
+        reason: "length_mismatch",
+        expectedLen: b.length,
+        tokenLen: a.length,
+      })
+    );
+    return false;
+  }
+  const ok = timingSafeEqual(a, b);
+  if (!ok) {
+    console.error(
+      JSON.stringify({
+        level: "auth_fail",
+        agroApiKey: "detected",
+        reason: "value_mismatch",
+        expectedLen: b.length,
+        tokenLen: a.length,
+      })
+    );
+  }
+  return ok;
 }
 
 export function authenticateRequest(
@@ -65,6 +92,15 @@ export function authenticateRequest(
   const token = extractBearerToken(authHeader);
 
   if (!verifyApiKey(token)) {
+    if (!token) {
+      console.error(
+        JSON.stringify({
+          level: "auth_fail",
+          agroApiKey: getAgroApiKeyStatus(),
+          reason: authHeader ? "bearer_parse_failed" : "missing_authorization",
+        })
+      );
+    }
     return { ok: false, response: UNAUTHORIZED };
   }
 
