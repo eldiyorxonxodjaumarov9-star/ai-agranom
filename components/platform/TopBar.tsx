@@ -1,6 +1,7 @@
 "use client";
 
 import { useEffect, useRef, useState } from "react";
+import Link from "next/link";
 import { motion, AnimatePresence } from "framer-motion";
 import {
   REGIONS,
@@ -111,14 +112,14 @@ export default function TopBar({
         </div>
 
         {/* Brand — desktop */}
-        <a href="/" className="hidden shrink-0 items-center gap-2 lg:flex">
+        <Link href="/" className="hidden shrink-0 items-center gap-2 lg:flex">
           <span className="flex h-7 w-7 items-center justify-center rounded-lg bg-brand text-brand-fg shadow-soft">
             <LeafIcon className="h-3.5 w-3.5" />
           </span>
           <span className="text-sm font-semibold tracking-tight text-ink">
             {t.appName}
           </span>
-        </a>
+        </Link>
 
         {/* Weather + Language + Theme */}
         <div className="flex shrink-0 items-center gap-1.5 sm:gap-2">

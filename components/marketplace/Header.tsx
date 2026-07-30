@@ -1,6 +1,7 @@
 "use client";
 
 import { useState } from "react";
+import Link from "next/link";
 import {
   LeafLogo,
   SearchIcon,
@@ -21,7 +22,7 @@ export default function Header() {
         {/* Top row */}
         <div className="flex h-14 min-w-0 items-center justify-between gap-2 sm:h-16 lg:h-[72px] lg:gap-3">
           {/* Logo */}
-          <a href="/" className="flex min-w-0 shrink items-center gap-2 sm:gap-2.5">
+          <Link href="/" className="flex min-w-0 shrink items-center gap-2 sm:gap-2.5">
             <LeafLogo className="h-8 w-8 shrink-0 sm:h-10 sm:w-10" />
             <div className="min-w-0 leading-tight">
               <span className="block truncate text-sm font-bold text-agro-800 sm:text-lg">
@@ -31,7 +32,7 @@ export default function Header() {
                 Marketplace
               </span>
             </div>
-          </a>
+          </Link>
 
           {/* Desktop search */}
           <div className="hidden flex-1 px-6 lg:block lg:max-w-xl xl:max-w-2xl">

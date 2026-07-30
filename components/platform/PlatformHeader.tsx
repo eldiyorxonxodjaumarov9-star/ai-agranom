@@ -1,5 +1,6 @@
 "use client";
 
+import Link from "next/link";
 import { motion } from "framer-motion";
 import { useTheme } from "@/lib/context/ThemeContext";
 
@@ -19,14 +20,14 @@ export default function PlatformHeader({
   return (
     <header className="sticky top-0 z-40 border-b border-line/70 bg-canvas/80 backdrop-blur-xl">
       <div className="mx-auto flex h-16 max-w-6xl items-center gap-4 px-4 sm:px-6">
-        <a href="/" className="flex shrink-0 items-center gap-2.5">
+        <Link href="/" className="flex shrink-0 items-center gap-2.5">
           <span className="flex h-8 w-8 items-center justify-center rounded-xl bg-brand text-brand-fg">
             <LeafIcon className="h-4 w-4" />
           </span>
           <span className="text-[15px] font-semibold tracking-tight text-ink">
             Agro Olam
           </span>
-        </a>
+        </Link>
 
         <div className="mx-auto hidden min-w-0 max-w-md flex-1 md:block">
           <label className="relative block">
