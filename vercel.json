@@ -25,7 +25,7 @@
     },
     {
       "path": "/api/cron/kb-embed",
-      "schedule": "*/10 * * * *"
+      "schedule": "30 2 * * *"
     }
   ]
 }
