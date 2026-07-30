@@ -32,7 +32,8 @@ export async function GET(request: NextRequest) {
     if (dbHealth.database === "connected") {
       const boot = await getBootstrapStatus();
       migration = {
-        expectedChunks: boot.corpus.totalChunks,
+        expectedChunks:
+          boot.corpus.uniqueChunks ?? boot.corpus.totalChunks,
         chunksInDb: boot.recordCounts?.chunks ?? 0,
         gapChunks: boot.gap.chunks,
         gapDiseases: boot.gap.diseases,

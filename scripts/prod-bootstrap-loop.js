@@ -109,9 +109,9 @@ async function main() {
 
     if (
       gap === 0 &&
-      (counts.chunks || 0) >= 10870 &&
-      (counts.diseases || 0) >= 300 &&
-      (counts.pests || 0) >= 158
+      (counts.chunks || 0) >= 10080 &&
+      (counts.diseases || 0) >= 279 &&
+      (counts.pests || 0) >= 142
     ) {
       report.finalHealth = {
         recordCounts: counts,

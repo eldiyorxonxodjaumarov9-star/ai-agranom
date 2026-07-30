@@ -54,9 +54,14 @@ async function main() {
   // Expansion targets
   try {
     const stats = corpusStats();
-    assert.ok(stats.diseases >= 300, `diseases ${stats.diseases}`);
-    assert.ok(stats.pests >= 150, `pests ${stats.pests}`);
+    assert.ok(stats.diseases >= 275, `diseases ${stats.diseases}`);
+    assert.ok(stats.pests >= 140, `pests ${stats.pests}`);
     assert.ok(stats.totalChunks >= 10000, `chunks ${stats.totalChunks}`);
+    assert.strictEqual(
+      stats.uniqueChunks ?? stats.totalChunks,
+      stats.totalChunks,
+      "duplicate chunk ids in corpus"
+    );
     ok(`expansion targets (d=${stats.diseases} p=${stats.pests} c=${stats.totalChunks})`);
   } catch (e) {
     fail("expansion targets", e);

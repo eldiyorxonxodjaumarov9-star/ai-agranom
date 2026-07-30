@@ -9,8 +9,16 @@ import { PESTS_EXTRA } from "./pests-extra";
 import { PESTS_PHASE4 } from "./pests-phase4";
 import { ACTIVE_INGREDIENTS } from "./products";
 
-const ALL_DISEASES = [...DISEASES, ...DISEASES_EXTRA, ...DISEASES_PHASE4];
-const ALL_PESTS = [...PESTS, ...PESTS_EXTRA, ...PESTS_PHASE4];
+const ALL_DISEASES = dedupeById([...DISEASES, ...DISEASES_EXTRA, ...DISEASES_PHASE4]);
+const ALL_PESTS = dedupeById([...PESTS, ...PESTS_EXTRA, ...PESTS_PHASE4]);
+
+function dedupeById<T extends { id: string }>(items: T[]): T[] {
+  const map = new Map<string, T>();
+  for (const item of items) {
+    map.set(item.id, item);
+  }
+  return Array.from(map.values());
+}
 
 const NOW = "2026-07-30T00:00:00.000Z";
 
@@ -430,11 +438,14 @@ export function buildCorpusChunks(): KnowledgeChunk[] {
 
 export function corpusStats(chunks: KnowledgeChunk[] = buildCorpusChunks()) {
   const byType: Record<string, number> = {};
+  const uniqueIds = new Set<string>();
   for (const c of chunks) {
     byType[c.entityType] = (byType[c.entityType] || 0) + 1;
+    uniqueIds.add(c.id);
   }
   return {
     totalChunks: chunks.length,
+    uniqueChunks: uniqueIds.size,
     crops: CROPS.length,
     diseases: ALL_DISEASES.length,
     pests: ALL_PESTS.length,

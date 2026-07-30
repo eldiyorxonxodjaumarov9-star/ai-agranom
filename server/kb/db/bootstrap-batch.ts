@@ -75,7 +75,7 @@ export async function runCorpusBootstrapBatch(options?: {
   const batchSize = options?.batchSize ?? 40;
   const started = Date.now();
   const corpus = corpusStats();
-  const expectedChunks = corpus.totalChunks;
+  const expectedChunks = corpus.uniqueChunks ?? corpus.totalChunks;
 
   const job = await prisma.importJob.upsert({
     where: { idempotencyKey: JOB_KEY },
@@ -416,7 +416,10 @@ export async function getBootstrapStatus(): Promise<{
     recordCounts,
     corpus,
     gap: {
-      chunks: Math.max(0, corpus.totalChunks - (recordCounts?.chunks ?? 0)),
+      chunks: Math.max(
+        0,
+        (corpus.uniqueChunks ?? corpus.totalChunks) - (recordCounts?.chunks ?? 0)
+      ),
       diseases: Math.max(0, corpus.diseases - (recordCounts?.diseases ?? 0)),
       pests: Math.max(0, corpus.pests - (recordCounts?.pests ?? 0)),
     },
