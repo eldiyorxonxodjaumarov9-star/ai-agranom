@@ -38,6 +38,14 @@ export type BootstrapBatchReport = {
   corpus: ReturnType<typeof corpusStats>;
 };
 
+function dedupeById<T extends { id: string }>(items: T[]): T[] {
+  const map = new Map<string, T>();
+  for (const item of items) {
+    map.set(item.id, item);
+  }
+  return Array.from(map.values());
+}
+
 function sha(s: string): string {
   return createHash("sha256").update(s).digest("hex").slice(0, 16);
 }
@@ -145,10 +153,14 @@ export async function runCorpusBootstrapBatch(options?: {
     };
   }
 
-  // Phase 1: fill missing disease/pest entity rows (id set diff — one query each)
+  // Phase 1: fill missing disease/pest entity rows (deduped corpus; EPPO-safe upsert)
   if ((!cp.entitiesDone || cp.stage === "entities") && chunkGap === 0) {
-    const ALL_DISEASES = [...DISEASES, ...DISEASES_EXTRA, ...DISEASES_PHASE4];
-    const ALL_PESTS = [...PESTS, ...PESTS_EXTRA, ...PESTS_PHASE4];
+    const ALL_DISEASES = dedupeById([
+      ...DISEASES,
+      ...DISEASES_EXTRA,
+      ...DISEASES_PHASE4,
+    ]);
+    const ALL_PESTS = dedupeById([...PESTS, ...PESTS_EXTRA, ...PESTS_PHASE4]);
     const existingDiseaseIds = new Set(
       (
         await prisma.disease.findMany({
@@ -165,17 +177,40 @@ export async function runCorpusBootstrapBatch(options?: {
         })
       ).map((r) => r.id)
     );
+    const usedEppoDisease = new Set(
+      (
+        await prisma.disease.findMany({
+          where: { deletedAt: null, eppoCode: { not: null } },
+          select: { eppoCode: true },
+        })
+      )
+        .map((r) => r.eppoCode)
+        .filter(Boolean) as string[]
+    );
+    const usedEppoPest = new Set(
+      (
+        await prisma.pest.findMany({
+          where: { deletedAt: null, eppoCode: { not: null } },
+          select: { eppoCode: true },
+        })
+      )
+        .map((r) => r.eppoCode)
+        .filter(Boolean) as string[]
+    );
 
     for (const d of ALL_DISEASES) {
       if (timeLeft() < 12_000) break;
       if (existingDiseaseIds.has(d.id)) continue;
+      const eppo =
+        d.eppoCode && !usedEppoDisease.has(d.eppoCode) ? d.eppoCode : null;
       try {
         const checksum = sha(JSON.stringify(d));
-        await prisma.disease.create({
-          data: {
+        await prisma.disease.upsert({
+          where: { id: d.id },
+          create: {
             id: d.id,
             scientificName: d.scientificName,
-            eppoCode: d.eppoCode || null,
+            eppoCode: eppo,
             pathogenType: d.pathogenType,
             pathogenName: d.scientificName,
             severity: d.severity,
@@ -185,7 +220,14 @@ export async function runCorpusBootstrapBatch(options?: {
             sourceUrl: d.sourceUrl,
             organization: d.organization,
           },
+          update: {
+            scientificName: d.scientificName,
+            checksum,
+            sourceUrl: d.sourceUrl,
+            organization: d.organization,
+          },
         });
+        if (eppo) usedEppoDisease.add(eppo);
         existingDiseaseIds.add(d.id);
         report.processedThisRun++;
       } catch (e) {
@@ -196,13 +238,16 @@ export async function runCorpusBootstrapBatch(options?: {
     for (const p of ALL_PESTS) {
       if (timeLeft() < 10_000) break;
       if (existingPestIds.has(p.id)) continue;
+      const eppo =
+        p.eppoCode && !usedEppoPest.has(p.eppoCode) ? p.eppoCode : null;
       try {
         const checksum = sha(JSON.stringify(p));
-        await prisma.pest.create({
-          data: {
+        await prisma.pest.upsert({
+          where: { id: p.id },
+          create: {
             id: p.id,
             scientificName: p.scientificName,
-            eppoCode: p.eppoCode || null,
+            eppoCode: eppo,
             pestType: p.pestType,
             status: "VERIFIED",
             qualityScore: 86,
@@ -210,7 +255,14 @@ export async function runCorpusBootstrapBatch(options?: {
             sourceUrl: p.sourceUrl,
             organization: p.organization,
           },
+          update: {
+            scientificName: p.scientificName,
+            checksum,
+            sourceUrl: p.sourceUrl,
+            organization: p.organization,
+          },
         });
+        if (eppo) usedEppoPest.add(eppo);
         existingPestIds.add(p.id);
         report.processedThisRun++;
       } catch (e) {
