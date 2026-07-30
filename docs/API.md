@@ -11,7 +11,7 @@ Professional public API for AI agronomy chat. Mobile apps, Telegram bots, CRM sy
 
 ## Authentication
 
-All requests to `POST /api/agronom/chat` require a Bearer token:
+All requests to `POST /api/agronom/chat` and `POST /api/agronom/vision` require a Bearer token:
 
 ```
 Authorization: Bearer YOUR_API_KEY
@@ -31,6 +31,7 @@ The Agro Olam website chat uses internal route `POST /api/chat` (no API key in b
 |--------|----------|------|-------------|
 | `GET` | `/api/agronom/health` | No | Health check |
 | `POST` | `/api/agronom/chat` | Yes | AI agronom chat |
+| `POST` | `/api/agronom/vision` | Yes | Plant image vision analysis |
 | `GET` | `/api/docs` | No | Swagger UI |
 | `GET` | `/api/docs/openapi.json` | No | OpenAPI spec |
 
@@ -107,6 +108,33 @@ Authorization: Bearer YOUR_API_KEY
 ```json
 { "success": false, "error": "AI javob berishda muammo bo'ldi" }
 ```
+
+---
+
+## Vision
+
+### `POST /api/agronom/vision`
+
+Separate endpoint — does **not** change `POST /api/agronom/chat`.
+
+**Limits:** max 5 images, 10 MB each. Formats: `image/jpeg`, `image/png`, `image/webp`, `image/gif`. Inputs: HTTPS URL, `data:image/*`, or raw base64. Image URLs are SSRF-protected (private IPs blocked, redirects disabled).
+
+**Request:**
+
+```json
+{
+  "images": [{ "url": "https://example.com/image1.jpg" }],
+  "message": "Pomidor bargida nima muammo bor?",
+  "language": "uz",
+  "sessionId": "user-123",
+  "region": "Toshkent",
+  "crop": "Pomidor"
+}
+```
+
+**Success (200):** `analysis` (summary, confidence ≤0.99, possibleDiseases/Pests, recommendedNextImages, requiresExpertReview), `recommendation`, `sources`.
+
+**Errors:** `401` Unauthorized · `413` Too many images / too large · `415` Unsupported image · `422` Invalid request · `429` Rate limit · `500` Internal error
 
 ---
 

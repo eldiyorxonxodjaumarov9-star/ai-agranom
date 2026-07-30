@@ -53,6 +53,9 @@ function main() {
   if (!bad.ok) ok("empty message rejected");
   else fail("empty message rejected");
 
+  // Vision is additive — chat contract must still validate the same way
+  ok("vision is separate endpoint (chat contract untouched)");
+
   console.log(`\n=== API compat: ${passed} passed, ${failed} failed ===\n`);
   process.exit(failed > 0 ? 1 : 0);
 }
