@@ -117,9 +117,26 @@ export async function runCorpusBootstrapBatch(options?: {
 
   const timeLeft = () => maxMs - (Date.now() - started);
 
+  const countsEarly = await getRecordCounts();
+  const chunkGapEarly = Math.max(0, expectedChunks - (countsEarly?.chunks ?? 0));
+  const diseaseGapEarly = Math.max(0, corpus.diseases - (countsEarly?.diseases ?? 0));
+  const pestGapEarly = Math.max(0, corpus.pests - (countsEarly?.pests ?? 0));
+
+  // Stale "done" checkpoint when DB still has gaps — always resume catch-up.
+  if (cp.stage === "done" && (chunkGapEarly > 0 || diseaseGapEarly > 0 || pestGapEarly > 0)) {
+    cp = {
+      stage: chunkGapEarly > 0 ? "chunks" : "entities",
+      chunkIndex: 0,
+      entitiesDone: diseaseGapEarly === 0 && pestGapEarly === 0,
+    };
+    await prisma.importJob.update({
+      where: { id: job.id },
+      data: { status: "running", checkpoint: JSON.stringify(cp) },
+    });
+  }
+
   // Prefer chunk catch-up when chunk gap dominates (avoid burning budget on entity scans).
-  const countsNow = await getRecordCounts();
-  const chunkGap = Math.max(0, expectedChunks - (countsNow?.chunks ?? 0));
+  const chunkGap = chunkGapEarly;
   if (chunkGap > 0) {
     cp = {
       stage: "chunks",
@@ -226,7 +243,7 @@ export async function runCorpusBootstrapBatch(options?: {
     }
   }
 
-  // Phase 2: chunk upserts from checkpoint index
+  // Phase 2: upsert missing/outdated chunks (scan corpus; no false done from index)
   const chunks = buildCorpusChunks();
   const existingChunkMeta = await prisma.knowledgeChunkRow.findMany({
     select: { id: true, checksum: true },
@@ -235,124 +252,123 @@ export async function runCorpusBootstrapBatch(options?: {
     existingChunkMeta.map((r) => [r.id, r.checksum])
   );
 
-  // Skip already-complete prefix when checkpoint is behind real DB fill
-  if (cp.chunkIndex < existingChunkMap.size * 0.8) {
-    // advance to first missing id index
-    let advance = cp.chunkIndex;
-    while (
-      advance < chunks.length &&
-      existingChunkMap.get(chunks[advance].id) === chunks[advance].checksum
-    ) {
-      advance++;
+  let batchProcessed = 0;
+  for (
+    let idx = 0;
+    idx < chunks.length && timeLeft() > 8_000 && batchProcessed < batchSize;
+    idx++
+  ) {
+    const c = chunks[idx];
+    if (existingChunkMap.get(c.id) === c.checksum) continue;
+    try {
+      const sourceId = c.organization.includes("EPPO")
+        ? "src-eppo"
+        : c.organization.includes("USDA")
+          ? "src-usda"
+          : "src-fao";
+      await prisma.knowledgeChunkRow.upsert({
+        where: { id: c.id },
+        create: {
+          id: c.id,
+          entityType: c.entityType as never,
+          entityId: c.entityId,
+          language: c.language,
+          title: c.title,
+          content: c.content,
+          keywords: c.keywords,
+          cropIds: c.cropIds || [],
+          plantParts: c.plantParts || [],
+          regions: c.regions || [],
+          sourceId,
+          sourceUrl: c.sourceUrl,
+          sourceTitle: c.sourceTitle,
+          organization: c.organization,
+          reliabilityScore: c.reliabilityScore,
+          qualityScore: c.qualityScore ?? 70,
+          status: c.status as never,
+          version: c.version,
+          checksum: c.checksum,
+        },
+        update: {
+          title: c.title,
+          content: c.content,
+          keywords: c.keywords,
+          qualityScore: c.qualityScore ?? 70,
+          status: c.status as never,
+          checksum: c.checksum,
+          version: { increment: 1 },
+          embeddingJson: Prisma.DbNull,
+        },
+      });
+      existingChunkMap.set(c.id, c.checksum);
+      report.processedThisRun++;
+      batchProcessed++;
+    } catch (e) {
+      report.failed++;
+      report.errors.push(
+        `${c.id}: ${e instanceof Error ? e.message : String(e)}`
+      );
     }
-    cp.chunkIndex = advance;
   }
 
-  let i = cp.chunkIndex;
-  while (i < chunks.length && timeLeft() > 12_000) {
-    const end = Math.min(i + batchSize, chunks.length);
-    for (let j = i; j < end; j++) {
-      if (timeLeft() < 8_000) break;
-      const c = chunks[j];
-      try {
-        if (existingChunkMap.get(c.id) === c.checksum) {
-          report.skippedChecksum++;
-          continue;
-        }
-        const sourceId = c.organization.includes("EPPO")
-          ? "src-eppo"
-          : c.organization.includes("USDA")
-            ? "src-usda"
-            : "src-fao";
-        await prisma.knowledgeChunkRow.upsert({
-          where: { id: c.id },
-          create: {
-            id: c.id,
-            entityType: c.entityType as never,
-            entityId: c.entityId,
-            language: c.language,
-            title: c.title,
-            content: c.content,
-            keywords: c.keywords,
-            cropIds: c.cropIds || [],
-            plantParts: c.plantParts || [],
-            regions: c.regions || [],
-            sourceId,
-            sourceUrl: c.sourceUrl,
-            sourceTitle: c.sourceTitle,
-            organization: c.organization,
-            reliabilityScore: c.reliabilityScore,
-            qualityScore: c.qualityScore ?? 70,
-            status: c.status as never,
-            version: c.version,
-            checksum: c.checksum,
-          },
-          update: {
-            title: c.title,
-            content: c.content,
-            keywords: c.keywords,
-            qualityScore: c.qualityScore ?? 70,
-            status: c.status as never,
-            checksum: c.checksum,
-            version: { increment: 1 },
-            embeddingJson: Prisma.DbNull,
-          },
-        });
-        existingChunkMap.set(c.id, c.checksum);
-        report.processedThisRun++;
-      } catch (e) {
-        report.failed++;
-        report.errors.push(
-          `${c.id}: ${e instanceof Error ? e.message : String(e)}`
-        );
-      }
-    }
-    i = end;
-    cp = { stage: "chunks", chunkIndex: i, entitiesDone: true };
-    await prisma.importJob.update({
-      where: { id: job.id },
-      data: {
-        checkpoint: JSON.stringify(cp),
-        progressJson: {
-          ...report,
-          chunkIndex: i,
-          percent: Math.round((i / chunks.length) * 1000) / 10,
-        } as never,
-      },
-    });
+  cp = {
+    stage: "chunks",
+    chunkIndex: batchProcessed,
+    entitiesDone: diseaseGapEarly === 0 && pestGapEarly === 0,
+  };
+  await prisma.importJob.update({
+    where: { id: job.id },
+    data: {
+      checkpoint: JSON.stringify(cp),
+      progressJson: {
+        ...report,
+        batchProcessed,
+      } as never,
+    },
+  });
+  if (batchProcessed > 0) {
     console.info(
-      `[kb-bootstrap-batch] chunks ${i}/${chunks.length} (+${report.processedThisRun})`
+      `[kb-bootstrap-batch] upserted ${batchProcessed} chunks (gap was ${chunkGapEarly})`
     );
   }
 
   const countsAfter = await getRecordCounts();
   report.recordCounts = countsAfter;
   report.chunksInDb = countsAfter?.chunks ?? 0;
-  report.chunkIndex = i;
+  report.chunkIndex = cp.chunkIndex;
   report.checkpoint = cp;
   report.elapsedMs = Date.now() - started;
 
-  const done =
-    report.chunksInDb >= expectedChunks &&
-    (countsAfter?.diseases ?? 0) >= corpus.diseases &&
-    (countsAfter?.pests ?? 0) >= corpus.pests;
+  const diseaseGapAfter = Math.max(0, corpus.diseases - (countsAfter?.diseases ?? 0));
+  const pestGapAfter = Math.max(0, corpus.pests - (countsAfter?.pests ?? 0));
+  const chunkGapAfter = Math.max(0, expectedChunks - (countsAfter?.chunks ?? 0));
 
-  if (done || i >= chunks.length) {
+  const done =
+    chunkGapAfter === 0 &&
+    diseaseGapAfter === 0 &&
+    pestGapAfter === 0;
+
+  report.done = done;
+  report.stage = done ? "done" : chunkGapAfter > 0 ? "chunks" : "entities";
+
+  if (done) {
     cp = { stage: "done", chunkIndex: chunks.length, entitiesDone: true };
-    report.done = done || report.chunksInDb >= expectedChunks;
-    report.stage = "done";
     report.checkpoint = cp;
     await prisma.importJob.update({
       where: { id: job.id },
       data: {
-        status: report.done ? "completed" : "completed_partial",
+        status: "completed",
         checkpoint: JSON.stringify(cp),
         progressJson: report as never,
       },
     });
   } else {
-    report.done = false;
-    report.stage = "chunks";
+    cp = {
+      stage: report.stage as BootstrapCheckpoint["stage"],
+      chunkIndex: 0,
+      entitiesDone: diseaseGapAfter === 0 && pestGapAfter === 0,
+    };
+    report.checkpoint = cp;
     await prisma.importJob.update({
       where: { id: job.id },
       data: {
