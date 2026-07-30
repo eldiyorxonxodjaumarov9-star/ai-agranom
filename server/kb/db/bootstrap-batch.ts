@@ -117,20 +117,45 @@ export async function runCorpusBootstrapBatch(options?: {
 
   const timeLeft = () => maxMs - (Date.now() - started);
 
-  // Phase 1: mark entities stage quickly — full migrateCorpusToDatabase is too
-  // heavy for serverless; fill disease/pest entity gaps in short bursts.
-  if (!cp.entitiesDone || cp.stage === "entities") {
+  // Prefer chunk catch-up when chunk gap dominates (avoid burning budget on entity scans).
+  const countsNow = await getRecordCounts();
+  const chunkGap = Math.max(0, expectedChunks - (countsNow?.chunks ?? 0));
+  if (chunkGap > 0) {
+    cp = {
+      stage: "chunks",
+      chunkIndex: Math.max(cp.chunkIndex, 0),
+      entitiesDone: true,
+    };
+  }
+
+  // Phase 1: fill missing disease/pest entity rows (id set diff — one query each)
+  if ((!cp.entitiesDone || cp.stage === "entities") && chunkGap === 0) {
     const ALL_DISEASES = [...DISEASES, ...DISEASES_EXTRA, ...DISEASES_PHASE4];
     const ALL_PESTS = [...PESTS, ...PESTS_EXTRA, ...PESTS_PHASE4];
+    const existingDiseaseIds = new Set(
+      (
+        await prisma.disease.findMany({
+          where: { deletedAt: null },
+          select: { id: true },
+        })
+      ).map((r) => r.id)
+    );
+    const existingPestIds = new Set(
+      (
+        await prisma.pest.findMany({
+          where: { deletedAt: null },
+          select: { id: true },
+        })
+      ).map((r) => r.id)
+    );
+
     for (const d of ALL_DISEASES) {
       if (timeLeft() < 12_000) break;
+      if (existingDiseaseIds.has(d.id)) continue;
       try {
         const checksum = sha(JSON.stringify(d));
-        const existing = await prisma.disease.findUnique({ where: { id: d.id } });
-        if (existing?.checksum === checksum) continue;
-        await prisma.disease.upsert({
-          where: { id: d.id },
-          create: {
+        await prisma.disease.create({
+          data: {
             id: d.id,
             scientificName: d.scientificName,
             eppoCode: d.eppoCode || null,
@@ -143,13 +168,8 @@ export async function runCorpusBootstrapBatch(options?: {
             sourceUrl: d.sourceUrl,
             organization: d.organization,
           },
-          update: {
-            scientificName: d.scientificName,
-            checksum,
-            sourceUrl: d.sourceUrl,
-            organization: d.organization,
-          },
         });
+        existingDiseaseIds.add(d.id);
         report.processedThisRun++;
       } catch (e) {
         report.failed++;
@@ -158,13 +178,11 @@ export async function runCorpusBootstrapBatch(options?: {
     }
     for (const p of ALL_PESTS) {
       if (timeLeft() < 10_000) break;
+      if (existingPestIds.has(p.id)) continue;
       try {
         const checksum = sha(JSON.stringify(p));
-        const existing = await prisma.pest.findUnique({ where: { id: p.id } });
-        if (existing?.checksum === checksum) continue;
-        await prisma.pest.upsert({
-          where: { id: p.id },
-          create: {
+        await prisma.pest.create({
+          data: {
             id: p.id,
             scientificName: p.scientificName,
             eppoCode: p.eppoCode || null,
@@ -175,13 +193,8 @@ export async function runCorpusBootstrapBatch(options?: {
             sourceUrl: p.sourceUrl,
             organization: p.organization,
           },
-          update: {
-            scientificName: p.scientificName,
-            checksum,
-            sourceUrl: p.sourceUrl,
-            organization: p.organization,
-          },
         });
+        existingPestIds.add(p.id);
         report.processedThisRun++;
       } catch (e) {
         report.failed++;
@@ -215,18 +228,34 @@ export async function runCorpusBootstrapBatch(options?: {
 
   // Phase 2: chunk upserts from checkpoint index
   const chunks = buildCorpusChunks();
+  const existingChunkMeta = await prisma.knowledgeChunkRow.findMany({
+    select: { id: true, checksum: true },
+  });
+  const existingChunkMap = new Map(
+    existingChunkMeta.map((r) => [r.id, r.checksum])
+  );
+
+  // Skip already-complete prefix when checkpoint is behind real DB fill
+  if (cp.chunkIndex < existingChunkMap.size * 0.8) {
+    // advance to first missing id index
+    let advance = cp.chunkIndex;
+    while (
+      advance < chunks.length &&
+      existingChunkMap.get(chunks[advance].id) === chunks[advance].checksum
+    ) {
+      advance++;
+    }
+    cp.chunkIndex = advance;
+  }
+
   let i = cp.chunkIndex;
-  while (i < chunks.length && timeLeft() > 15_000) {
+  while (i < chunks.length && timeLeft() > 12_000) {
     const end = Math.min(i + batchSize, chunks.length);
     for (let j = i; j < end; j++) {
-      if (timeLeft() < 10_000) break;
+      if (timeLeft() < 8_000) break;
       const c = chunks[j];
       try {
-        const existing = await prisma.knowledgeChunkRow.findUnique({
-          where: { id: c.id },
-          select: { checksum: true },
-        });
-        if (existing?.checksum === c.checksum) {
+        if (existingChunkMap.get(c.id) === c.checksum) {
           report.skippedChecksum++;
           continue;
         }
@@ -266,10 +295,10 @@ export async function runCorpusBootstrapBatch(options?: {
             status: c.status as never,
             checksum: c.checksum,
             version: { increment: 1 },
-            // Clear embedding when content checksum changes
             embeddingJson: Prisma.DbNull,
           },
         });
+        existingChunkMap.set(c.id, c.checksum);
         report.processedThisRun++;
       } catch (e) {
         report.failed++;
