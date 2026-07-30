@@ -1,37 +1,62 @@
-import { createHash } from "crypto";
+import { createHash, timingSafeEqual } from "crypto";
 
 const UNAUTHORIZED = {
   success: false as const,
   error: "Unauthorized",
 };
 
+const PLACEHOLDER_KEYS = new Set([
+  "super_secret_api_key_here",
+  "your_api_key_here",
+  "",
+]);
+
+/**
+ * Read AGRO_API_KEY at runtime (dynamic key access).
+ * Never log the value — only presence.
+ */
+export function getAgroApiKeyStatus(): "detected" | "missing" {
+  const key = readAgroApiKey();
+  return key && !PLACEHOLDER_KEYS.has(key) ? "detected" : "missing";
+}
+
+function readAgroApiKey(): string {
+  // Bracket access + runtime read — avoid build-time secret inlining.
+  const raw = process.env["AGRO_API_KEY"];
+  if (typeof raw !== "string") return "";
+  return raw
+    .replace(/^\uFEFF/, "") // BOM
+    .replace(/\r\n/g, "\n")
+    .replace(/\r/g, "\n")
+    .trim()
+    .replace(/^["']|["']$/g, ""); // dashboard accidental quotes
+}
+
 export function extractBearerToken(
   authHeader: string | null
 ): string | null {
-  if (!authHeader?.startsWith("Bearer ")) return null;
-  const token = authHeader.slice(7).trim();
+  if (!authHeader || typeof authHeader !== "string") return null;
+  // Case-insensitive "Bearer", allow extra whitespace
+  const m = /^Bearer\s+(\S+)/i.exec(authHeader.trim());
+  if (!m) return null;
+  const token = m[1].trim();
   return token || null;
 }
 
 export function verifyApiKey(token: string | null): boolean {
-  const expected = process.env.AGRO_API_KEY;
+  const expected = readAgroApiKey();
 
-  if (!expected || expected === "super_secret_api_key_here") {
-    console.error("[auth] AGRO_API_KEY is not configured");
+  if (!expected || PLACEHOLDER_KEYS.has(expected)) {
+    console.error("[auth] AGRO_API_KEY env missing");
     return false;
   }
 
   if (!token) return false;
 
-  // Constant-time comparison
-  if (token.length !== expected.length) return false;
-
-  let mismatch = 0;
-  for (let i = 0; i < token.length; i++) {
-    mismatch |= token.charCodeAt(i) ^ expected.charCodeAt(i);
-  }
-
-  return mismatch === 0;
+  const a = Buffer.from(token, "utf8");
+  const b = Buffer.from(expected, "utf8");
+  if (a.length !== b.length) return false;
+  return timingSafeEqual(a, b);
 }
 
 export function authenticateRequest(
