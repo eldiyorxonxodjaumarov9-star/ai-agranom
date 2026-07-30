@@ -28,6 +28,7 @@
     "kb:reindex": "tsx scripts/kb-reindex.ts",
     "kb:embedding-status": "tsx scripts/kb-embedding-status.ts",
     "kb:import-kz-ppp": "tsx scripts/kb-import-kz-ppp.ts",
+    "kb:product-stats": "tsx scripts/kb-product-stats.ts",
     "prisma:generate": "node scripts/prisma-generate.js",
     "prisma:validate": "prisma validate",
     "prisma:migrate:deploy": "node scripts/prisma-migrate-deploy.js",

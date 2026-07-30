@@ -1,7 +1,9 @@
 /**
- * Optional corpus bootstrap during Vercel build (real env available there).
- * Skips when DATABASE_URL is missing/invalid.
- * On Vercel: seeds only when KnowledgeChunk table is empty (idempotent).
+ * Build-time corpus seed is OPT-IN only.
+ * Full 10k+ upserts exceed typical Vercel build budgets — use
+ * POST /api/admin/kb/bootstrap (checkpoint/resume) or cron instead.
+ *
+ * Enable with: KB_MIGRATE_CORPUS_ON_BUILD=1
  */
 const { execSync } = require("child_process");
 
@@ -15,13 +17,11 @@ function pickUrl() {
 }
 
 const url = pickUrl();
-const enabled =
-  process.env.KB_MIGRATE_CORPUS_ON_BUILD === "1" ||
-  process.env.VERCEL === "1";
+const enabled = process.env.KB_MIGRATE_CORPUS_ON_BUILD === "1";
 
 if (!enabled) {
   console.log(
-    "[kb-bootstrap-build] skip (not Vercel / set KB_MIGRATE_CORPUS_ON_BUILD=1)"
+    "[kb-bootstrap-build] skip (set KB_MIGRATE_CORPUS_ON_BUILD=1 to seed during build; prefer /api/admin/kb/bootstrap)"
   );
   process.exit(0);
 }
@@ -39,7 +39,6 @@ try {
     env,
   });
 } catch (err) {
-  // Don't fail the whole site deploy if corpus seed fails — tables still exist
   console.error(
     "[kb-bootstrap-build] corpus migrate failed (non-fatal):",
     err.message

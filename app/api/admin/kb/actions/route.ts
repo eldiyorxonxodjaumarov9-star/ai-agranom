@@ -64,13 +64,37 @@ export async function POST(request: NextRequest) {
                 needsReview: dbCounts.productsNeedsReview,
               }
             : null,
+          bootstrap: await (async () => {
+            try {
+              const { getBootstrapStatus } = await import(
+                "@/server/kb/db/bootstrap-batch"
+              );
+              return await getBootstrapStatus();
+            } catch {
+              return null;
+            }
+          })(),
+          cronSecretConfigured: Boolean(process.env.CRON_SECRET?.trim()),
+          cronSecretRequired: !process.env.CRON_SECRET?.trim(),
           notes: {
             embeddingReindex:
               "Run locally/CI: npm run kb:reindex -- --mode embeddings (not inside Vercel request)",
-            kzImport: "npm run kb:import-kz-ppp -- --file ./official-export.csv",
+            kzImport: "UI: /admin/kb/products/import or npm run kb:import-kz-ppp -- --file ./export.csv",
+            bootstrap: "POST /api/admin/kb/bootstrap to resume corpus sync",
           },
         },
       });
+    }
+
+    if (action === "resume-bootstrap") {
+      const { runCorpusBootstrapBatch } = await import(
+        "@/server/kb/db/bootstrap-batch"
+      );
+      const report = await runCorpusBootstrapBatch({
+        force: body?.force === true,
+        maxMs: Number(body?.maxMs || 240000),
+      });
+      return NextResponse.json({ success: true, report });
     }
 
     if (action === "approve" || action === "reject") {

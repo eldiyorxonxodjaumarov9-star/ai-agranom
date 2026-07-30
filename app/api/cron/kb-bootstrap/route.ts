@@ -3,11 +3,11 @@ import {
   authorizeCronRequest,
   logCronUnauthorized,
 } from "@/lib/agronom/cron-auth";
+import { checkDatabaseHealth } from "@/server/kb/db/client";
 import {
-  checkDatabaseHealth,
-  getRecordCounts,
-} from "@/server/kb/db/client";
-import { migrateCorpusToDatabase } from "@/server/kb/db/migrate-corpus";
+  getBootstrapStatus,
+  runCorpusBootstrapBatch,
+} from "@/server/kb/db/bootstrap-batch";
 import { getEmbeddingStats } from "@/server/kb/db/embedding-stats";
 
 export const runtime = "nodejs";
@@ -15,9 +15,9 @@ export const dynamic = "force-dynamic";
 export const maxDuration = 300;
 
 /**
- * Bootstrap Neon KB after tables exist.
+ * Vercel Cron / manual bootstrap with checkpoint resume.
  * Auth: Authorization: Bearer CRON_SECRET
- * Optional: AGRO_API_KEY when KB_CRON_ALLOW_AGRO_KEY=1
+ * Optional AGRO_API_KEY when KB_CRON_ALLOW_AGRO_KEY=1
  */
 export async function GET(request: NextRequest) {
   return run(request);
@@ -32,7 +32,11 @@ async function run(request: NextRequest) {
   if (!auth.ok) {
     logCronUnauthorized("/api/cron/kb-bootstrap", auth);
     return NextResponse.json(
-      { success: false, error: "Unauthorized" },
+      {
+        success: false,
+        error: "Unauthorized",
+        cronSecretRequired: !process.env.CRON_SECRET?.trim(),
+      },
       { status: 401 }
     );
   }
@@ -45,23 +49,16 @@ async function run(request: NextRequest) {
     );
   }
 
-  const force = request.nextUrl.searchParams.get("force") === "1";
-  const countsBefore = await getRecordCounts();
-  const { corpusStats } = await import("@/server/kb/corpus/build");
-  const expected = corpusStats().totalChunks;
-  if (
-    !force &&
-    countsBefore &&
-    countsBefore.chunks >= expected
-  ) {
+  const statusOnly = request.nextUrl.searchParams.get("status") === "1";
+  if (statusOnly) {
+    const status = await getBootstrapStatus();
     return NextResponse.json({
       success: true,
-      skipped: true,
-      reason: "already_populated",
       authVia: auth.via,
       health,
-      recordCounts: countsBefore,
       embeddings: await getEmbeddingStats(),
+      ...status,
+      cronSecretConfigured: true,
     });
   }
 
@@ -71,26 +68,30 @@ async function run(request: NextRequest) {
     process.env.DATABASE_URL = unpooled;
   }
 
-  console.info("[kb-bootstrap] corpus migrate start", {
+  const force = request.nextUrl.searchParams.get("force") === "1";
+  console.info("[kb-bootstrap] batch start", {
     force,
     authVia: auth.via,
     authFp: auth.fingerprint,
   });
 
   try {
-    const report = await migrateCorpusToDatabase();
-    const countsAfter = await getRecordCounts();
-    const healthAfter = await checkDatabaseHealth();
+    const report = await runCorpusBootstrapBatch({ force, maxMs: 240000 });
     return NextResponse.json({
       success: true,
       authVia: auth.via,
-      health: healthAfter,
-      recordCounts: countsAfter,
+      health: await checkDatabaseHealth(),
       embeddings: await getEmbeddingStats(),
-      report: { ...report, errors: report.errors.slice(0, 20) },
+      report,
+      hint: report.done
+        ? "complete"
+        : "resume: call this endpoint again (checkpoint saved)",
     });
   } catch (err) {
-    console.error("[kb-bootstrap] failed", err instanceof Error ? err.message : err);
+    console.error(
+      "[kb-bootstrap] failed",
+      err instanceof Error ? err.message : err
+    );
     return NextResponse.json(
       {
         success: false,

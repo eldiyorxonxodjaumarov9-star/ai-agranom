@@ -114,9 +114,14 @@ export default function AdminKbPage() {
           <p className="text-sm text-ink-muted">Agro Olam · Knowledge Base Admin</p>
           <h1 className="text-3xl font-semibold tracking-tight">KB Sync & Review</h1>
           <p className="text-sm text-ink-muted max-w-2xl">
-            Phase 4: embedding coverage, product verification queue, KZ PPP admin
-            import, cron/source health. Token faqat sessionStorage’da. Embedding
-            reindex Vercel request ichida emas — CLI:{" "}
+            Phase 4: embedding coverage, product verification, KZ PPP import, cron
+            health.{" "}
+            <a className="underline" href="/admin/kb/products/import">
+              Product registry import
+            </a>
+            . Bootstrap resume:{" "}
+            <code className="text-xs">POST /api/admin/kb/bootstrap</code>. Embedding
+            reindex CLI (not in Vercel request):{" "}
             <code className="text-xs">npm run kb:reindex -- --mode embeddings</code>
           </p>
         </header>

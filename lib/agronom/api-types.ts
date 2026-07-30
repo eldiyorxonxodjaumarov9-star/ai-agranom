@@ -69,4 +69,17 @@ export interface HealthApiResponse {
     vectorIndexReady: boolean;
     lastReindexAt: string | null;
   };
+  /** True when CRON_SECRET env is set (value never exposed) */
+  cronSecretConfigured?: boolean;
+  /** Explicit flag when CRON_SECRET missing */
+  cronSecretRequired?: boolean;
+  migration?: {
+    expectedChunks: number;
+    chunksInDb: number;
+    gapChunks: number;
+    gapDiseases: number;
+    gapPests: number;
+    jobStatus?: string;
+    checkpoint?: unknown;
+  };
 }

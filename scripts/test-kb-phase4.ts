@@ -9,6 +9,7 @@ import { verifyProductRecord } from "../server/kb/products/verify";
 import {
   parseKzPppCsv,
   importKzPppRows,
+  parseKzPppJson,
 } from "../server/kb/products/kz-ppp-import";
 import { corpusStats } from "../server/kb/corpus/build";
 import { SERVICE_NAME } from "../lib/agronom/api-types";
@@ -265,6 +266,28 @@ Copper Max,KZ-REG-1,AgroChem,copper oxychloride,tomato;potato,late-blight,https:
     ok("full embedding reindex module");
   } catch (e) {
     fail("embedding reindex module", e);
+  }
+
+  // Bootstrap batch module
+  try {
+    const boot = await import("../server/kb/db/bootstrap-batch");
+    assert.equal(typeof boot.runCorpusBootstrapBatch, "function");
+    assert.equal(typeof boot.getBootstrapStatus, "function");
+    ok("production corpus bootstrap module");
+  } catch (e) {
+    fail("bootstrap module", e);
+  }
+
+  // Malformed KZ file
+  try {
+    try {
+      parseKzPppJson("{not-json");
+      fail("product malformed file", "should throw");
+    } catch {
+      ok("product malformed JSON rejected");
+    }
+  } catch (e) {
+    fail("malformed file", e);
   }
 
   console.log(`\n=== Phase 4 tests: ${passed} passed, ${failed} failed ===`);

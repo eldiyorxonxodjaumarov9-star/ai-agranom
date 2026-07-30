@@ -197,13 +197,17 @@ export async function retrieveKnowledge(
   const tokens = tokenize(query);
   const candidates: KnowledgeChunk[] = [];
   let dbUsed = false;
+  const modes: string[] = [];
 
   if (isDatabaseConfigured()) {
     const exact = await searchExactScientificOrEppo(query, {
       limit: 24,
       language: options?.language,
     });
-    candidates.push(...exact);
+    if (exact.length) {
+      candidates.push(...exact);
+      modes.push("exact");
+    }
 
     const vector = await searchChunksByVector(query, {
       limit: 40,
@@ -213,6 +217,7 @@ export async function retrieveKnowledge(
     if (vector && vector.length) {
       candidates.push(...vector);
       dbUsed = true;
+      modes.push("vector");
     }
 
     const keyword = await searchChunksInDb(query, {
@@ -223,6 +228,7 @@ export async function retrieveKnowledge(
     if (keyword && keyword.length) {
       candidates.push(...keyword);
       dbUsed = true;
+      modes.push("full_text");
     } else if (exact.length) {
       dbUsed = true;
     }
@@ -230,13 +236,20 @@ export async function retrieveKnowledge(
 
   let chunks = mergeUnique(candidates);
   if (!dbUsed || chunks.length === 0) {
-    // Corpus emergency fallback only when DB path empty / not configured
     if (!isDatabaseConfigured() || chunks.length === 0) {
       chunks = getVerifiedChunks();
+      modes.push("corpus_fallback");
     }
   }
 
-  // Prefer DB-stored embeddings; file cache only for corpus fallback chunks
+  if (process.env.KB_RETRIEVAL_DEBUG === "1") {
+    console.info("[kb/retrieve]", {
+      modes,
+      candidateCount: chunks.length,
+      queryPreview: query.slice(0, 80),
+    });
+  }
+
   const embeddingMap: Record<string, number[]> = {};
   for (const c of chunks) {
     if (c.embedding?.length) embeddingMap[c.id] = c.embedding;
