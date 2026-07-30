@@ -36,6 +36,8 @@ pnpm-debug.log*
 !.env.example
 .cron-secret.local
 .env.cron*
+.agro-key.tmp
+.env.vercel.prod.tmp
 
 # typescript
 *.tsbuildinfo
