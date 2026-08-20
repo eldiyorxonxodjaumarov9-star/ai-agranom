@@ -54,6 +54,19 @@ export const SOURCE_REGISTRY: SourceRegistryEntry[] = [
     notes: "Only registered PPP entries. Phase 4 deep sync.",
   },
   {
+    id: "uz-ppp-registry",
+    name: "Uzbekistan plant protection product registry",
+    baseUrl: "https://agrokomakchi.uz",
+    sourceType: "official_database",
+    license: "official_public_registry",
+    allowedForIngestion: true,
+    crawlDelayMs: 5000,
+    lastCheckedAt: "2026-08-20",
+    enabled: true,
+    notes:
+      "Live SPA/API dump blocked (SSO). Ingest via admin official CSV/JSON/XLSX/PDF only.",
+  },
+  {
     id: "agro-olam-catalog",
     name: "Agro Olam Marketplace Catalog",
     baseUrl: "https://ai-agranom.vercel.app",

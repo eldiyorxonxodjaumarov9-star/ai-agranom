@@ -1,0 +1,38 @@
+[
+  {
+    "domain": "gozaltabiat.uz",
+    "url": "https://gozaltabiat.uz/",
+    "status": "PENDING_REVIEW",
+    "discoveredBy": "admin_manual_list",
+    "crawlEnabled": false
+  },
+  {
+    "domain": "anguzalagro.uz",
+    "url": "https://anguzalagro.uz/",
+    "status": "PENDING_REVIEW",
+    "discoveredBy": "admin_manual_list",
+    "crawlEnabled": false
+  },
+  {
+    "domain": "bizkim.uz",
+    "url": "https://bizkim.uz/",
+    "status": "PENDING_REVIEW",
+    "discoveredBy": "admin_manual_list",
+    "crawlEnabled": false,
+    "notes": "robots/home 403 — fail-closed until review"
+  },
+  {
+    "domain": "namunagroup.com",
+    "url": "https://namunagroup.com/",
+    "status": "PENDING_REVIEW",
+    "discoveredBy": "admin_manual_list",
+    "crawlEnabled": false
+  },
+  {
+    "domain": "pengsheng.uz",
+    "url": "https://pengsheng.uz/",
+    "status": "PENDING_REVIEW",
+    "discoveredBy": "admin_manual_list",
+    "crawlEnabled": false
+  }
+]

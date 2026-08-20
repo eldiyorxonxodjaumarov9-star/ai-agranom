@@ -1,0 +1,15 @@
+declare module "xlsx" {
+  export function read(
+    data: Buffer | ArrayBuffer | string,
+    opts?: { type?: string }
+  ): {
+    SheetNames: string[];
+    Sheets: Record<string, unknown>;
+  };
+  export const utils: {
+    sheet_to_json: <T>(
+      sheet: unknown,
+      opts?: { header?: number | string[]; defval?: unknown; raw?: boolean }
+    ) => T[];
+  };
+}

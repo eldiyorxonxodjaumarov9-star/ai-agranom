@@ -1,0 +1,5 @@
+productName,registrationNumber,manufacturer,activeIngredient,concentration,formulation,approvedCrops,approvedTargets,registrationStatus,expiresAt,labelUrl
+Ridomil Gold MZ 68 WG,UZ-PPP-2024-001,Syngenta,Metalaxyl-M + Mancozeb,40+640 g/kg,WG,pomidor;kartoshka,phytophthora;late blight,ACTIVE,2028-12-31,https://example.gov.uz/labels/uz-ppp-2024-001.pdf
+Topaz 100 EC,UZ-PPP-2024-002,Syngenta,Penconazole,100 g/l,EC,uzum;olma,oidium;powdery mildew,ACTIVE,2027-06-30,https://example.gov.uz/labels/uz-ppp-2024-002.pdf
+Aktara 25 WG,UZ-PPP-2023-015,Syngenta,Thiamethoxam,250 g/kg,WG,pomidor;karam,aphids;whitefly,ACTIVE,2026-12-31,https://example.gov.uz/labels/uz-ppp-2023-015.pdf
+Expired Demo SC,UZ-PPP-2018-099,DemoChem,DemoActive,200 g/l,SC,bugdoy,rust,EXPIRED,2020-01-01,https://example.gov.uz/labels/uz-ppp-2018-099.pdf
