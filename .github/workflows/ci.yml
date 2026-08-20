@@ -10,7 +10,8 @@ jobs:
   check:
     runs-on: ubuntu-latest
     env:
-      DATABASE_URL: postgresql://ci:ci@127.0.0.1:5432/ci
+      # Intentionally unset DATABASE_URL for unit tests (corpus fallback).
+      # Validate/build steps set a placeholder URL only.
       RUN_DB_MIGRATIONS: ""
       AGRO_API_KEY: ci_public_key_not_for_admin
       ADMIN_API_KEY: ci_admin_key_separate
@@ -31,10 +32,15 @@ jobs:
       - name: Unit tests
         run: npm test
       - name: Prisma validate
+        env:
+          DATABASE_URL: postgresql://ci:ci@127.0.0.1:5432/ci
         run: npx prisma validate
       - name: Diff check
         run: git diff --check
       - name: Build without migrations
+        env:
+          DATABASE_URL: postgresql://ci:ci@127.0.0.1:5432/ci
+          RUN_DB_MIGRATIONS: ""
         run: npm run build
       - name: Dependency audit gate
         run: node scripts/ci-npm-audit.js
