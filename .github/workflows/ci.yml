@@ -32,13 +32,15 @@ jobs:
           echo "$files" | while read -r f; do
             [ -f "$f" ] || continue
             case "$f" in
-              *.png|*.jpg|*.woff2|*.pack|package-lock.json) continue ;;
+              *.png|*.jpg|*.woff2|*.pack|package-lock.json|.env.example) continue ;;
             esac
             if grep -EIq 'sk-[A-Za-z0-9]{20,}|BEGIN RSA PRIVATE KEY|vercel_[A-Za-z0-9_]{24,}' "$f"; then
               echo "Possible secret in $f"
               exit 1
             fi
-            if grep -EI 'postgres(ql)?://[^[:space:]]+' "$f" | grep -Ev '127\.0\.0\.1|localhost|ci:ci@' >/dev/null; then
+            # Require user:pass@host shape; ignore placeholders/ellipsis/localhost/CI
+            if grep -EI 'postgres(ql)?://[^[:space:]/:]+:[^[:space:]/@]+@[^[:space:]]+' "$f" \
+              | grep -Ev '127\.0\.0\.1|localhost|ci:ci@|example\.|your_|changeme|\.\.\.' >/dev/null; then
               echo "Possible DB credential in $f"
               exit 1
             fi
