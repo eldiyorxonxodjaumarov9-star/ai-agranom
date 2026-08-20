@@ -10,7 +10,13 @@
     "lint": "next lint",
     "typecheck": "tsc --noEmit",
     "start:api": "tsx server/index.ts",
-    "test": "npm run test:lang && npm run test:kb && npm run test:kb-phase2 && npm run test:kb-audit && npm run test:kb-db && npm run test:kb-phase4 && npm run test:api-compat && npm run test:hardening && npm run test:vision",
+    "test": "npm run test:lang && npm run test:kb && npm run test:kb-phase2 && npm run test:kb-audit && npm run test:kb-db && npm run test:kb-phase4 && npm run test:api-compat && npm run test:hardening && npm run test:vision && npm run test:sanitize && npm run test:auth-fix && npm run test:vision-diag && npm run test:parser-fixtures && npm run test:recommend-gate && npm run test:import-security",
+    "test:sanitize": "tsx scripts/test-answer-sanitize.ts",
+    "test:auth-fix": "tsx scripts/test-auth-fix.ts",
+    "test:vision-diag": "tsx scripts/test-vision-diagnosis.ts",
+    "test:parser-fixtures": "tsx scripts/test-parser-fixtures.ts",
+    "test:recommend-gate": "tsx scripts/test-recommend-gate-integration.ts",
+    "test:import-security": "tsx scripts/test-import-security.ts",
     "test:vision": "tsx scripts/test-vision.ts",
     "test:hardening": "tsx scripts/test-hardening.ts",
     "test:lang": "tsx scripts/test-language-detection.ts",
@@ -30,6 +36,7 @@
     "kb:reindex": "tsx scripts/kb-reindex.ts",
     "kb:embedding-status": "tsx scripts/kb-embedding-status.ts",
     "kb:import-kz-ppp": "tsx scripts/kb-import-kz-ppp.ts",
+    "kb:import-uz-ppp": "tsx scripts/kb-import-uz-ppp.ts",
     "kb:product-stats": "tsx scripts/kb-product-stats.ts",
     "prisma:generate": "node scripts/prisma-generate.js",
     "prisma:validate": "prisma validate",
@@ -51,7 +58,9 @@
     "react-dom": "^18.3.0",
     "react-markdown": "^9.0.0",
     "rehype-sanitize": "^6.0.0",
-    "remark-gfm": "^4.0.0"
+    "remark-gfm": "^4.0.0",
+    "xlsx": "^0.18.5",
+    "zod": "^3.25.76"
   },
   "devDependencies": {
     "@types/express": "^4.17.21",

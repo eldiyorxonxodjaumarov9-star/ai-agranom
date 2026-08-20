@@ -1,5 +1,5 @@
 import { NextRequest, NextResponse } from "next/server";
-import { authenticateRequest } from "@/lib/agronom/auth";
+import { authenticateAdminRequest } from "@/lib/agronom/admin-auth";
 import { loadChunks, saveChunks, upsertChunks } from "@/server/kb/store";
 import { enqueueImport, getImportQueue, cancelImport } from "@/server/kb/sync/queue";
 import type { SyncJobKind } from "@/server/kb/adapters/types";
@@ -25,7 +25,7 @@ export const maxDuration = 60;
  * { action: approve|reject|merge|reindex|retry|enqueue|cancel|disable-source, ... }
  */
 export async function POST(request: NextRequest) {
-  const auth = authenticateRequest(request.headers.get("authorization"));
+  const auth = authenticateAdminRequest(request);
   if (!auth.ok) {
     return NextResponse.json(
       { success: false, error: "Unauthorized" },
@@ -223,7 +223,7 @@ export async function POST(request: NextRequest) {
 }
 
 export async function GET(request: NextRequest) {
-  const auth = authenticateRequest(request.headers.get("authorization"));
+  const auth = authenticateAdminRequest(request);
   if (!auth.ok) {
     return NextResponse.json(
       { success: false, error: "Unauthorized" },

@@ -2,6 +2,11 @@
 const nextConfig = {
   reactStrictMode: true,
   poweredByHeader: false,
+  // Windows + Node 24: jest-worker multi-process page collection can abort with
+  // spawn UNKNOWN / UV_HANDLE_CLOSING. Cap workers locally; Vercel Linux is fine.
+  ...(process.platform === "win32"
+    ? { experimental: { cpus: 1, workerThreads: false } }
+    : {}),
   async headers() {
     return [
       {

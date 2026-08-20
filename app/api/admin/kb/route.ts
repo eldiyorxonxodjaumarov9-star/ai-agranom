@@ -1,5 +1,5 @@
 import { NextRequest, NextResponse } from "next/server";
-import { authenticateRequest } from "@/lib/agronom/auth";
+import { authenticateAdminRequest } from "@/lib/agronom/admin-auth";
 import {
   getAllowedSources,
   getVerifiedChunks,
@@ -30,7 +30,7 @@ export const dynamic = "force-dynamic";
  * POST: manual JSON chunk import (Phase 1)
  */
 export async function GET(request: NextRequest) {
-  const auth = authenticateRequest(request.headers.get("authorization"));
+  const auth = authenticateAdminRequest(request);
   if (!auth.ok) {
     return NextResponse.json(
       { success: false, error: "Unauthorized" },
@@ -137,7 +137,7 @@ export async function GET(request: NextRequest) {
 }
 
 export async function POST(request: NextRequest) {
-  const auth = authenticateRequest(request.headers.get("authorization"));
+  const auth = authenticateAdminRequest(request);
   if (!auth.ok) {
     return NextResponse.json(
       { success: false, error: "Unauthorized" },

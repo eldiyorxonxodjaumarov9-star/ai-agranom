@@ -3,7 +3,7 @@
   "info": {
     "title": "AI Dehqon API",
     "description": "Professional public API for AI agronomy chat and plant vision analysis. Use Bearer token authentication.",
-    "version": "1.1.0",
+    "version": "1.2.0",
     "contact": {
       "name": "Agro Olam",
       "url": "https://ai-agranom.vercel.app"
@@ -39,13 +39,21 @@
           },
           "language": {
             "type": "string",
-            "enum": ["auto", "uz", "ru", "en"],
+            "enum": ["auto", "uz", "ru", "kk", "ky", "en"],
             "default": "auto"
           },
           "sessionId": {
             "type": "string",
             "example": "user-session-123",
             "description": "Optional session ID for multi-turn conversation"
+          },
+          "region": { "type": "string" },
+          "crop": { "type": "string" },
+          "greenhouse": { "type": "boolean" },
+          "images": {
+            "type": "array",
+            "items": { "type": "string" },
+            "description": "Optional data:image/* payloads (site may use /api/chat/vision instead)"
           }
         }
       },
@@ -53,9 +61,31 @@
         "type": "object",
         "properties": {
           "success": { "type": "boolean", "example": true },
-          "answer": { "type": "string" },
+          "answer": {
+            "type": "string",
+            "description": "User-facing Markdown only. Never contains URLs, Manbalar section, AGRO_META, JSON, or technical IDs. Provenance may appear in optional sources metadata."
+          },
           "language": { "type": "string", "example": "uz" },
-          "service": { "type": "string", "example": "agro-olam-ai-agronom" }
+          "service": { "type": "string", "example": "agro-olam-ai-agronom" },
+          "sources": {
+            "type": "array",
+            "description": "Optional provenance metadata — not shown inside answer text",
+            "items": {
+              "type": "object",
+              "properties": {
+                "organization": { "type": "string" },
+                "title": { "type": "string" },
+                "url": { "type": "string" }
+              }
+            }
+          },
+          "confidence": { "type": "number" },
+          "products": {
+            "type": "array",
+            "items": { "type": "string" },
+            "description": "Optional internal catalog product ids"
+          },
+          "requiresExpertReview": { "type": "boolean" }
         }
       },
       "VisionImage": {
@@ -288,7 +318,7 @@
     "/api/agronom/vision": {
       "post": {
         "summary": "Plant vision analysis",
-        "description": "Analyze up to 5 plant images (URL, data URI, or base64), then ground recommendations in Knowledge Base / RAG. Never returns 100% diagnosis. Low confidence sets requiresExpertReview=true. Does not modify POST /api/agronom/chat.",
+        "description": "Analyze up to 5 plant images with evidence-based differential diagnosis (visual features → RAG → candidates). Never returns 100% diagnosis. Low confidence or conflicts set requiresExpertReview=true. recommendation/summary contain no URLs. Does not modify POST /api/agronom/chat.",
         "tags": ["Vision"],
         "security": [{ "BearerAuth": [] }],
         "requestBody": {

@@ -161,10 +161,8 @@ function Stat({
 }
 
 export default function AdminKbPage() {
-  const [token, setToken] = useState(() => {
-    if (typeof window === "undefined") return "";
-    return sessionStorage.getItem("agro-admin-token") || "";
-  });
+  const [tokenInput, setTokenInput] = useState("");
+  const [sessionReady, setSessionReady] = useState(false);
   const [tab, setTab] = useState<TabId>("sync-jobs");
   const [data, setData] = useState<unknown>(null);
   const [error, setError] = useState<string | null>(null);
@@ -173,20 +171,49 @@ export default function AdminKbPage() {
 
   const headers = useMemo(
     () => ({
-      Authorization: `Bearer ${token}`,
       "Content-Type": "application/json",
     }),
-    [token]
+    []
   );
 
-  const saveToken = (value: string) => {
-    setToken(value);
-    sessionStorage.setItem("agro-admin-token", value);
+  const establishSession = async () => {
+    const value = tokenInput.trim();
+    if (!value) {
+      setError("AGRO_API_KEY kiriting — cookie session ochiladi (kalit saqlanmaydi).");
+      return;
+    }
+    setLoading(true);
+    setError(null);
+    try {
+      const res = await fetch("/api/admin/session", {
+        method: "POST",
+        credentials: "include",
+        headers: {
+          Authorization: `Bearer ${value}`,
+          "Content-Type": "application/json",
+        },
+      });
+      const json = await res.json().catch(() => ({}));
+      if (!res.ok) throw new Error((json as { error?: string }).error || "Unauthorized");
+      setTokenInput("");
+      setSessionReady(true);
+      try {
+        sessionStorage.removeItem("agro-admin-token");
+      } catch {
+        /* ignore */
+      }
+    } catch (e) {
+      setSessionReady(false);
+      setError(e instanceof Error ? e.message : "Session xato");
+    } finally {
+      setLoading(false);
+    }
   };
 
   const loadEmbeddings = useCallback(async () => {
     const res = await fetch("/api/admin/kb/actions", {
       method: "POST",
+      credentials: "include",
       headers,
       body: JSON.stringify({ action: "embedding-status" }),
     });
@@ -196,8 +223,8 @@ export default function AdminKbPage() {
   }, [headers]);
 
   const load = useCallback(async () => {
-    if (!token) {
-      setError("AGRO_API_KEY Bearer token kiriting (faqat shu brauzerda saqlanadi).");
+    if (!sessionReady) {
+      setError("Avval admin session oching (Bearer bir marta).");
       return;
     }
     setLoading(true);
@@ -206,7 +233,10 @@ export default function AdminKbPage() {
       if (tab === "embeddings") {
         await loadEmbeddings();
       } else if (tab === "products") {
-        const res = await fetch("/api/admin/kb/actions", { headers });
+        const res = await fetch("/api/admin/kb/actions", {
+          credentials: "include",
+          headers,
+        });
         const json = await res.json();
         if (!res.ok) throw new Error(json.error || "Xato");
         setData({
@@ -215,7 +245,10 @@ export default function AdminKbPage() {
           notes: json.dashboard?.notes,
         });
       } else {
-        const res = await fetch(`/api/admin/kb?view=${tab}`, { headers });
+        const res = await fetch(`/api/admin/kb?view=${tab}`, {
+          credentials: "include",
+          headers,
+        });
         const json = await res.json();
         if (!res.ok) throw new Error(json.error || "Xato");
         setData(json);
@@ -226,15 +259,16 @@ export default function AdminKbPage() {
     } finally {
       setLoading(false);
     }
-  }, [headers, tab, token, loadEmbeddings]);
+  }, [headers, tab, sessionReady, loadEmbeddings]);
 
   const runSync = async () => {
-    if (!token) return;
+    if (!sessionReady) return;
     setLoading(true);
     setError(null);
     try {
       const res = await fetch("/api/admin/kb/sync", {
         method: "POST",
+        credentials: "include",
         headers,
         body: JSON.stringify({ kind: syncKind }),
       });
@@ -250,12 +284,13 @@ export default function AdminKbPage() {
   };
 
   const retryFailed = async () => {
-    if (!token) return;
+    if (!sessionReady) return;
     setLoading(true);
     setError(null);
     try {
       const res = await fetch("/api/admin/kb/actions", {
         method: "POST",
+        credentials: "include",
         headers,
         body: JSON.stringify({ action: "retry-failed-embeddings" }),
       });
@@ -289,19 +324,112 @@ export default function AdminKbPage() {
 
         <section className="flex flex-col gap-3 sm:flex-row sm:items-end">
           <label className="flex-1 space-y-1 text-sm">
-            <span className="text-ink-muted">Bearer AGRO_API_KEY</span>
+            <span className="text-ink-muted">
+              AGRO_API_KEY (bir marta — httpOnly cookie session)
+              {sessionReady ? " · session ochiq" : ""}
+            </span>
             <input
               type="password"
               className="w-full rounded-xl border border-line bg-canvas-elevated px-3 py-2"
-              value={token}
-              onChange={(e) => saveToken(e.target.value)}
+              value={tokenInput}
+              onChange={(e) => setTokenInput(e.target.value)}
               placeholder="••••••••"
               autoComplete="off"
             />
           </label>
+          <button
+            type="button"
+            onClick={establishSession}
+            className="btn-primary"
+            disabled={loading}
+          >
+            Session
+          </button>
           <button type="button" onClick={load} className="btn-primary" disabled={loading}>
             {loading ? "Yuklanmoqda…" : "Yuklash"}
           </button>
+        </section>
+
+        <section className="rounded-xl border border-line bg-canvas-elevated p-4 space-y-2 text-sm">
+          <p className="font-medium">Seller / agro-dorixona domenlari</p>
+          <p className="text-ink-muted text-xs">
+            Real saytlar ro‘yxatini yuboring — kodga o‘ylab topilgan domen
+            qo‘yilmaydi.{" "}
+            <a className="underline" href="/admin/kb/products/import">
+              Rasmiy PPP import
+            </a>
+          </p>
+          <div className="flex flex-wrap gap-2">
+            <input
+              id="seller-domain-input"
+              type="text"
+              placeholder="masalan: pharmacy.example.uz"
+              className="grow rounded-xl border border-line bg-canvas px-3 py-2 text-sm"
+              disabled={!sessionReady}
+            />
+            <button
+              type="button"
+              className="btn-ghost border border-line"
+              disabled={!sessionReady || loading}
+              onClick={async () => {
+                const el = document.getElementById(
+                  "seller-domain-input"
+                ) as HTMLInputElement | null;
+                const domain = el?.value?.trim() || "";
+                if (!domain) {
+                  setError("Seller domenini kiriting (real sayt).");
+                  return;
+                }
+                setLoading(true);
+                setError(null);
+                try {
+                  const res = await fetch("/api/admin/kb/sellers", {
+                    method: "POST",
+                    credentials: "include",
+                    headers: { "Content-Type": "application/json" },
+                    body: JSON.stringify({
+                      action: "add_domain",
+                      domain,
+                      enabled: false,
+                    }),
+                  });
+                  const json = await res.json();
+                  if (!res.ok) throw new Error(json.error || "Seller xatosi");
+                  setData(json);
+                  if (el) el.value = "";
+                } catch (e) {
+                  setError(e instanceof Error ? e.message : "Xato");
+                } finally {
+                  setLoading(false);
+                }
+              }}
+            >
+              Domen qo‘shish
+            </button>
+            <button
+              type="button"
+              className="btn-ghost border border-line"
+              disabled={!sessionReady || loading}
+              onClick={async () => {
+                setLoading(true);
+                setError(null);
+                try {
+                  const res = await fetch("/api/admin/kb/sellers", {
+                    credentials: "include",
+                  });
+                  const json = await res.json();
+                  if (!res.ok) throw new Error(json.error || "Xato");
+                  setData(json);
+                } catch (e) {
+                  setError(e instanceof Error ? e.message : "Xato");
+                } finally {
+                  setLoading(false);
+                }
+              }}
+            >
+              Seller ro‘yxat
+            </button>
+          </div>
         </section>
 
         <section className="flex flex-wrap items-center gap-2">
@@ -319,10 +447,13 @@ export default function AdminKbPage() {
           <button
             type="button"
             onClick={async () => {
-              if (!token) return;
+              if (!sessionReady) return;
               setLoading(true);
               try {
-                const res = await fetch("/api/admin/kb/actions", { headers });
+                const res = await fetch("/api/admin/kb/actions", {
+                  credentials: "include",
+                  headers,
+                });
                 const json = await res.json();
                 if (!res.ok) throw new Error(json.error || "Xato");
                 setData(json);
@@ -333,7 +464,7 @@ export default function AdminKbPage() {
               }
             }}
             className="btn-ghost border border-line"
-            disabled={loading || !token}
+            disabled={loading || !sessionReady}
           >
             Dashboard
           </button>
@@ -341,7 +472,7 @@ export default function AdminKbPage() {
             type="button"
             onClick={runSync}
             className="btn-ghost border border-line"
-            disabled={loading || !token}
+            disabled={loading || !sessionReady}
           >
             Sync ishga tushirish
           </button>

@@ -3,7 +3,7 @@ import {
   authorizeCronRequest,
   logCronUnauthorized,
 } from "@/lib/agronom/cron-auth";
-import { authenticateRequest } from "@/lib/agronom/auth";
+import { authenticateAdminRequest } from "@/lib/agronom/admin-auth";
 import {
   checkDatabaseHealth,
   getRecordCounts,
@@ -36,7 +36,7 @@ function authorize(request: NextRequest): {
 
   // Admin Bearer AGRO_API_KEY always allowed for this bootstrap control plane
   // (separate from cron fallback flag) so operators can resume without CRON_SECRET.
-  const admin = authenticateRequest(request.headers.get("authorization"));
+  const admin = authenticateAdminRequest(request);
   if (admin.ok) {
     return { ok: true, via: "agro_admin", fingerprint: admin.keyFingerprint };
   }
