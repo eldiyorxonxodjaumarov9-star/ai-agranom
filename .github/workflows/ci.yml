@@ -46,11 +46,5 @@ jobs:
         run: node scripts/ci-npm-audit.js
       - name: Ensure xlsx absent
         run: |
-          if node -e "const p=require('./package.json'); if(p.dependencies&&p.dependencies.xlsx) process.exit(1)"; then
-            echo "xlsx dependency must not ship"
-            exit 1
-          fi
-          if node -e "try{require.resolve('xlsx');process.exit(1)}catch(e){console.log('xlsx: absent')}"; then
-            true
-          fi
-          echo "xlsx: absent"
+          node -e "const p=require('./package.json'); if (p.dependencies && p.dependencies.xlsx) { console.error('xlsx dependency must not ship'); process.exit(1); }"
+          node -e "try { require.resolve('xlsx'); console.error('xlsx module resolvable'); process.exit(1); } catch { console.log('xlsx: absent'); }"
