@@ -1,4 +1,14 @@
 import { z } from "zod";
+import {
+  arr,
+  bool,
+  int,
+  num,
+  numOrNull,
+  strictObject,
+  str,
+  strOrNull,
+} from "./strict-json-schema";
 
 const ConditionType = z.enum([
   "disease",
@@ -9,37 +19,35 @@ const ConditionType = z.enum([
 ]);
 
 export const CandidateConditionSchema = z.object({
-  conditionId: z.string().max(128).optional().nullable(),
+  conditionId: z.string().max(128).nullable(),
   type: ConditionType,
   name: z.string().min(1).max(200),
-  scientificName: z.string().max(200).optional().nullable(),
+  scientificName: z.string().max(200).nullable(),
   confidence: z.number().min(0).max(0.99),
-  supportingEvidence: z.array(z.string().max(400)).max(8).default([]),
-  contradictingEvidence: z.array(z.string().max(400)).max(8).default([]),
+  supportingEvidence: z.array(z.string().max(400)).max(8),
+  contradictingEvidence: z.array(z.string().max(400)).max(8),
 });
 
 export const DiagnosisSchema = z.object({
-  crop: z.string().max(120).optional().nullable(),
-  plantPart: z.string().max(80).optional().nullable(),
-  imageQuality: z
-    .enum(["good", "fair", "poor", "unknown"])
-    .default("unknown"),
-  observations: z.array(z.string().max(400)).max(12).default([]),
-  candidateConditions: z.array(CandidateConditionSchema).max(8).default([]),
-  overallConfidence: z.number().min(0).max(0.99).default(0),
-  requiresExpertReview: z.boolean().default(false),
+  crop: z.string().max(120).nullable(),
+  plantPart: z.string().max(80).nullable(),
+  imageQuality: z.enum(["good", "fair", "poor", "unknown"]),
+  observations: z.array(z.string().max(400)).max(12),
+  candidateConditions: z.array(CandidateConditionSchema).max(8),
+  overallConfidence: z.number().min(0).max(0.99),
+  requiresExpertReview: z.boolean(),
 });
 
 export const ActionsSchema = z.object({
-  immediate: z.array(z.string().max(400)).max(8).default([]),
-  monitor: z.array(z.string().max(400)).max(8).default([]),
-  nextImages: z.array(z.string().max(200)).max(8).default([]),
+  immediate: z.array(z.string().max(400)).max(8),
+  monitor: z.array(z.string().max(400)).max(8),
+  nextImages: z.array(z.string().max(200)).max(8),
 });
 
 export const CalendarItemSchema = z.object({
   title: z.string().max(200),
   daysFromNow: z.number().int().min(0).max(365),
-  crop: z.string().max(120).optional().nullable(),
+  crop: z.string().max(120).nullable(),
 });
 
 export const ReminderItemSchema = z.object({
@@ -50,182 +58,93 @@ export const ReminderItemSchema = z.object({
 export const HealthSchema = z.object({
   crop: z.string().max(120),
   score: z.number().min(0).max(100),
-  pros: z.array(z.string().max(200)).max(6).default([]),
-  cons: z.array(z.string().max(200)).max(6).default([]),
+  pros: z.array(z.string().max(200)).max(6),
+  cons: z.array(z.string().max(200)).max(6),
 });
 
-/**
- * Internal structured agronom response.
- * displayText is the only user-facing string — no URLs, JSON, IDs, or Manbalar.
- */
+/** Model may only propose internal product IDs — never trade names for gating. */
 export const AgronomStructuredResponseSchema = z.object({
   displayText: z.string().min(1).max(8000),
-  diagnosis: DiagnosisSchema.optional().nullable(),
-  actions: ActionsSchema.optional().nullable(),
-  productCandidates: z.array(z.string().max(128)).max(12).default([]),
-  calendar: z.array(CalendarItemSchema).max(12).default([]),
-  reminders: z.array(ReminderItemSchema).max(12).default([]),
-  health: HealthSchema.optional().nullable(),
-  sourceIds: z.array(z.string().max(128)).max(20).default([]),
-  confidence: z.number().min(0).max(0.99).optional().nullable(),
-  requiresExpertReview: z.boolean().default(false),
+  diagnosis: DiagnosisSchema.nullable(),
+  actions: ActionsSchema.nullable(),
+  productCandidates: z.array(z.string().max(128)).max(12),
+  calendar: z.array(CalendarItemSchema).max(12),
+  reminders: z.array(ReminderItemSchema).max(12),
+  health: HealthSchema.nullable(),
+  sourceIds: z.array(z.string().max(128)).max(20),
+  confidence: z.number().min(0).max(0.99).nullable(),
+  requiresExpertReview: z.boolean(),
 });
 
 export type AgronomStructuredResponse = z.infer<
   typeof AgronomStructuredResponseSchema
 >;
 
-/** OpenAI json_schema for Structured Outputs (strict-ish). */
+const candidateJson = strictObject({
+  conditionId: strOrNull(),
+  type: {
+    type: "string",
+    enum: ["disease", "pest", "abiotic", "nutrient", "unknown"],
+  },
+  name: str(),
+  scientificName: strOrNull(),
+  confidence: num(),
+  supportingEvidence: arr(str()),
+  contradictingEvidence: arr(str()),
+});
+
+const diagnosisJson = strictObject({
+  crop: strOrNull(),
+  plantPart: strOrNull(),
+  imageQuality: {
+    type: "string",
+    enum: ["good", "fair", "poor", "unknown"],
+  },
+  observations: arr(str()),
+  candidateConditions: arr(candidateJson),
+  overallConfidence: num(),
+  requiresExpertReview: bool(),
+});
+
+const actionsJson = strictObject({
+  immediate: arr(str()),
+  monitor: arr(str()),
+  nextImages: arr(str()),
+});
+
+const calendarItemJson = strictObject({
+  title: str(),
+  daysFromNow: int(),
+  crop: strOrNull(),
+});
+
+const reminderJson = strictObject({
+  title: str(),
+  hoursFromNow: int(),
+});
+
+const healthJson = strictObject({
+  crop: str(),
+  score: num(),
+  pros: arr(str()),
+  cons: arr(str()),
+});
+
 export const AGRONOM_RESPONSE_JSON_SCHEMA = {
   name: "agronom_response",
   strict: true,
-  schema: {
-    type: "object",
-    additionalProperties: false,
-    required: [
-      "displayText",
-      "productCandidates",
-      "calendar",
-      "reminders",
-      "sourceIds",
-      "requiresExpertReview",
-    ],
-    properties: {
-      displayText: { type: "string" },
-      diagnosis: {
-        anyOf: [
-          { type: "null" },
-          {
-            type: "object",
-            additionalProperties: false,
-            required: [
-              "imageQuality",
-              "observations",
-              "candidateConditions",
-              "overallConfidence",
-              "requiresExpertReview",
-            ],
-            properties: {
-              crop: { anyOf: [{ type: "string" }, { type: "null" }] },
-              plantPart: { anyOf: [{ type: "string" }, { type: "null" }] },
-              imageQuality: {
-                type: "string",
-                enum: ["good", "fair", "poor", "unknown"],
-              },
-              observations: {
-                type: "array",
-                items: { type: "string" },
-              },
-              candidateConditions: {
-                type: "array",
-                items: {
-                  type: "object",
-                  additionalProperties: false,
-                  required: [
-                    "type",
-                    "name",
-                    "confidence",
-                    "supportingEvidence",
-                    "contradictingEvidence",
-                  ],
-                  properties: {
-                    conditionId: {
-                      anyOf: [{ type: "string" }, { type: "null" }],
-                    },
-                    type: {
-                      type: "string",
-                      enum: [
-                        "disease",
-                        "pest",
-                        "abiotic",
-                        "nutrient",
-                        "unknown",
-                      ],
-                    },
-                    name: { type: "string" },
-                    scientificName: {
-                      anyOf: [{ type: "string" }, { type: "null" }],
-                    },
-                    confidence: { type: "number" },
-                    supportingEvidence: {
-                      type: "array",
-                      items: { type: "string" },
-                    },
-                    contradictingEvidence: {
-                      type: "array",
-                      items: { type: "string" },
-                    },
-                  },
-                },
-              },
-              overallConfidence: { type: "number" },
-              requiresExpertReview: { type: "boolean" },
-            },
-          },
-        ],
-      },
-      actions: {
-        anyOf: [
-          { type: "null" },
-          {
-            type: "object",
-            additionalProperties: false,
-            required: ["immediate", "monitor", "nextImages"],
-            properties: {
-              immediate: { type: "array", items: { type: "string" } },
-              monitor: { type: "array", items: { type: "string" } },
-              nextImages: { type: "array", items: { type: "string" } },
-            },
-          },
-        ],
-      },
-      productCandidates: { type: "array", items: { type: "string" } },
-      calendar: {
-        type: "array",
-        items: {
-          type: "object",
-          additionalProperties: false,
-          required: ["title", "daysFromNow"],
-          properties: {
-            title: { type: "string" },
-            daysFromNow: { type: "integer" },
-            crop: { anyOf: [{ type: "string" }, { type: "null" }] },
-          },
-        },
-      },
-      reminders: {
-        type: "array",
-        items: {
-          type: "object",
-          additionalProperties: false,
-          required: ["title", "hoursFromNow"],
-          properties: {
-            title: { type: "string" },
-            hoursFromNow: { type: "integer" },
-          },
-        },
-      },
-      health: {
-        anyOf: [
-          { type: "null" },
-          {
-            type: "object",
-            additionalProperties: false,
-            required: ["crop", "score", "pros", "cons"],
-            properties: {
-              crop: { type: "string" },
-              score: { type: "number" },
-              pros: { type: "array", items: { type: "string" } },
-              cons: { type: "array", items: { type: "string" } },
-            },
-          },
-        ],
-      },
-      sourceIds: { type: "array", items: { type: "string" } },
-      confidence: { anyOf: [{ type: "number" }, { type: "null" }] },
-      requiresExpertReview: { type: "boolean" },
-    },
-  },
+  schema: strictObject({
+    displayText: str(),
+    diagnosis: { anyOf: [{ type: "null" }, diagnosisJson] },
+    actions: { anyOf: [{ type: "null" }, actionsJson] },
+    productCandidates: arr(str()),
+    calendar: arr(calendarItemJson),
+    reminders: arr(reminderJson),
+    health: { anyOf: [{ type: "null" }, healthJson] },
+    sourceIds: arr(str()),
+    confidence: numOrNull(),
+    requiresExpertReview: bool(),
+  }),
 } as const;
 
 export function safeParseAgronomResponse(
@@ -235,7 +154,9 @@ export function safeParseAgronomResponse(
   return parsed.success ? parsed.data : null;
 }
 
-export function fallbackAgronomResponse(message?: string): AgronomStructuredResponse {
+export function fallbackAgronomResponse(
+  message?: string
+): AgronomStructuredResponse {
   return {
     displayText:
       message?.trim() ||

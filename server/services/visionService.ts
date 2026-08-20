@@ -15,6 +15,10 @@ import {
 } from "@/lib/agronom/language";
 import { sanitizeDisplayText } from "@/lib/agronom/display-sanitize";
 import {
+  applyProductGateToAnswer,
+  stripUngatedProductClaims,
+} from "@/server/kb/products/gate-products";
+import {
   VISUAL_FEATURES_JSON_SCHEMA,
   VISION_DIFFERENTIAL_JSON_SCHEMA,
   VisualFeaturesSchema,
@@ -39,6 +43,8 @@ export type VisionResult = {
   analysis: VisionAnalysis;
   recommendation: string;
   sources: Array<{ organization: string; title: string; url: string }>;
+  /** Gated verified product IDs only — omitted when empty */
+  products?: string[];
 };
 
 function clamp01(n: number): number {
@@ -265,6 +271,7 @@ ${langBlock}`;
         "Poya",
         "Zararlangan joyning yaqin plani",
       ],
+      productCandidates: [],
       abstain: true,
     };
   }
@@ -354,8 +361,20 @@ export async function analyzePlantVision(input: {
     differential.abstain ||
     calibrated.abstain;
 
-  const displayText = sanitizeDisplayText(differential.displayText);
-  const summary = sanitizeDisplayText(differential.summary || displayText);
+  const gated = await applyProductGateToAnswer({
+    displayText: differential.displayText,
+    candidateIds: differential.productCandidates || [],
+    language: input.language,
+    requestCropId: input.crop || null,
+    requestTarget: null,
+  });
+  const displayText = sanitizeDisplayText(gated.displayText);
+  const rawSummary = differential.summary || displayText;
+  const summary = sanitizeDisplayText(
+    gated.products.length
+      ? rawSummary
+      : stripUngatedProductClaims(rawSummary)
+  );
 
   const mapPublic = (items: VisionDifferential["possibleDiseases"]) =>
     items
@@ -391,6 +410,9 @@ export async function analyzePlantVision(input: {
       title: s.title,
       url: s.url,
     })),
+    ...(gated.products.length
+      ? { products: gated.products.map((p) => p.id) }
+      : {}),
   };
 }
 

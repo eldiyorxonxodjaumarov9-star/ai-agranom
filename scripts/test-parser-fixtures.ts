@@ -60,6 +60,43 @@ const allowRobots = `User-agent: *\nAllow: /\n`;
 }
 
 {
+  // Longest-match: Allow /products/public wins over Disallow /products
+  const robots = `User-agent: *\nDisallow: /products\nAllow: /products/public\n`;
+  const a = assertRobotsAllowed({
+    robotsTxt: robots,
+    fetchFailed: false,
+    path: "/products/public/item",
+    mode: "commercial",
+  });
+  const b = assertRobotsAllowed({
+    robotsTxt: robots,
+    fetchFailed: false,
+    path: "/products/secret",
+    mode: "commercial",
+  });
+  if (a.allowed && !b.allowed) ok("robots longest-match Allow/Disallow");
+  else fail("robots longest-match", JSON.stringify({ a, b }));
+}
+
+{
+  const robots = `User-agent: *\nDisallow: /*.pdf$\nAllow: /\n`;
+  const pdf = assertRobotsAllowed({
+    robotsTxt: robots,
+    fetchFailed: false,
+    path: "/docs/label.pdf",
+    mode: "commercial",
+  });
+  const html = assertRobotsAllowed({
+    robotsTxt: robots,
+    fetchFailed: false,
+    path: "/docs/page.html",
+    mode: "commercial",
+  });
+  if (!pdf.allowed && html.allowed) ok("robots wildcard $ end-anchor");
+  else fail("robots wildcard $", JSON.stringify({ pdf, html }));
+}
+
+{
   if (isPrivateIp("127.0.0.1") && isPrivateIp("10.1.2.3")) ok("private IP blocked helpers");
   else fail("private IP blocked helpers");
 }
@@ -107,7 +144,10 @@ const allowRobots = `User-agent: *\nAllow: /\n`;
     labelUrl: "https://akk.karantin.uz/media/labels/real.pdf",
     sourceChecksum: "abc",
     sourceDocumentId: "doc-uz-1",
+    sourceDocumentSha256: "b".repeat(64),
+    sourceDocumentCountry: "UZ",
     trustedOfficialSource: true,
+    officialHostTrusted: true,
     adminApproved: true,
     verifiedBy: "admin",
     verifiedAt: new Date(),

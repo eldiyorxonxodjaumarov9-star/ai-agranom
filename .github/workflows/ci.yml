@@ -1,0 +1,68 @@
+# PR CI — no production DB, no seller crawl, no migrations
+name: ci
+
+on:
+  pull_request:
+  push:
+    branches: [feature/agronom-diagnosis-safe-ingestion]
+
+jobs:
+  check:
+    runs-on: ubuntu-latest
+    env:
+      DATABASE_URL: postgresql://ci:ci@127.0.0.1:5432/ci
+      RUN_DB_MIGRATIONS: ""
+      AGRO_API_KEY: ci_public_key_not_for_admin
+      ADMIN_API_KEY: ci_admin_key_separate
+      ADMIN_COOKIE_SECRET: ci_admin_cookie_secret
+      NODE_ENV: test
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: "20"
+          cache: npm
+      - name: Install
+        run: npm ci
+      - name: Secret scan (changed files)
+        run: |
+          set -e
+          git fetch origin main --depth=1 || true
+          files=$(git diff --name-only origin/main...HEAD 2>/dev/null || git ls-files)
+          echo "$files" | while read -r f; do
+            [ -f "$f" ] || continue
+            case "$f" in
+              *.png|*.jpg|*.woff2|*.pack|package-lock.json) continue ;;
+            esac
+            if grep -EIq 'sk-[A-Za-z0-9]{20,}|BEGIN RSA PRIVATE KEY|vercel_[A-Za-z0-9_]{24,}' "$f"; then
+              echo "Possible secret in $f"
+              exit 1
+            fi
+            if grep -EI 'postgres(ql)?://[^[:space:]]+' "$f" | grep -Ev '127\.0\.0\.1|localhost|ci:ci@' >/dev/null; then
+              echo "Possible DB credential in $f"
+              exit 1
+            fi
+          done
+          echo "SECRET_SCAN: clean"
+      - name: Typecheck
+        run: npm run typecheck
+      - name: Unit tests
+        run: npm test
+      - name: Prisma validate
+        run: npx prisma validate
+      - name: Diff check
+        run: git diff --check
+      - name: Build without migrations
+        run: npm run build
+      - name: Dependency audit gate
+        run: node scripts/ci-npm-audit.js
+      - name: Ensure xlsx absent
+        run: |
+          if node -e "const p=require('./package.json'); if(p.dependencies&&p.dependencies.xlsx) process.exit(1)"; then
+            echo "xlsx dependency must not ship"
+            exit 1
+          fi
+          if node -e "try{require.resolve('xlsx');process.exit(1)}catch(e){console.log('xlsx: absent')}"; then
+            true
+          fi
+          echo "xlsx: absent"

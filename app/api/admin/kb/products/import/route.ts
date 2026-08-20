@@ -6,7 +6,7 @@ import {
   parseOfficialPppCsv,
   parseOfficialPppJson,
   parseOfficialPppPdfBuffer,
-  parseOfficialPppXlsxBuffer,
+  assertImportPayloadLimits,
   type OfficialPppCountry,
 } from "@/server/kb/products/official-ppp-import";
 import {
@@ -27,7 +27,7 @@ function resolveCountry(raw: unknown): OfficialPppCountry {
 export async function GET(request: NextRequest) {
   const auth = authenticateAdminRequest(request);
   if (!auth.ok) {
-    return NextResponse.json(auth.response, { status: 401 });
+    return NextResponse.json(auth.response, { status: auth.status || 401 });
   }
   return NextResponse.json({
     success: true,
@@ -44,7 +44,9 @@ export async function GET(request: NextRequest) {
 export async function POST(request: NextRequest) {
   const auth = authenticateAdminRequest(request);
   if (!auth.ok) {
-    return NextResponse.json(auth.response, { status: 401 });
+    return NextResponse.json(auth.response, {
+      status: auth.status || 401,
+    });
   }
 
   try {
@@ -85,23 +87,34 @@ export async function POST(request: NextRequest) {
     const isPdf = format === "pdf" || lower.endsWith(".pdf");
     const isJson = format === "json" || lower.endsWith(".json");
 
+    try {
+      assertImportPayloadLimits({
+        content,
+        contentBase64,
+      });
+    } catch (e) {
+      return NextResponse.json(
+        {
+          success: false,
+          error: e instanceof Error ? e.message : "IMPORT_TOO_LARGE",
+        },
+        { status: 413 }
+      );
+    }
+
     let rows;
     let parseHint: string | undefined;
 
     try {
       if (isXlsx) {
-        if (!contentBase64.trim()) {
-          return NextResponse.json(
-            {
-              success: false,
-              error: "XLSX_REQUIRES_BASE64",
-              hint: "Send contentBase64 for official XLSX exports.",
-            },
-            { status: 400 }
-          );
-        }
-        const buf = Buffer.from(contentBase64, "base64");
-        rows = await parseOfficialPppXlsxBuffer(buf, country);
+        return NextResponse.json(
+          {
+            success: false,
+            error: "XLSX_DISABLED",
+            hint: "xlsx parser removed (GHSA-5pgg-2g8v-p4x9). Export CSV/JSON.",
+          },
+          { status: 400 }
+        );
       } else if (isPdf) {
         const buf = contentBase64.trim()
           ? Buffer.from(contentBase64, "base64")

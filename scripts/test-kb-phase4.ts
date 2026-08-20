@@ -108,6 +108,21 @@ async function main() {
   }
 
   // Product verification
+  const attest = {
+    registrationCountry: "KZ",
+    expiresAt: "2030-06-01",
+    sourceDocumentId: "kz-doc-phase4",
+    sourceDocumentSha256: "b".repeat(64),
+    sourceDocumentCountry: "KZ",
+    trustedOfficialSource: true,
+    officialHostTrusted: true,
+    registrationStatus: "ACTIVE" as const,
+    adminApproved: true,
+    verifiedBy: "actor-hash",
+    verifiedAt: new Date(),
+    labelUrl: "https://www.gov.kz/memleket/entities/moa/documents/label",
+  };
+
   try {
     const expired = verifyProductRecord({
       registryRecordExists: true,
@@ -144,6 +159,7 @@ async function main() {
 
   try {
     const full = verifyProductRecord({
+      ...attest,
       registryRecordExists: true,
       registrationNumber: "KZ-99",
       manufacturer: "AgroChem",
@@ -152,8 +168,6 @@ async function main() {
       formulation: "WP",
       approvedCrops: ["tomato"],
       approvedTargets: ["late-blight"],
-      labelUrl: "https://example.com/label.pdf",
-      officialPdfUrl: "https://example.com/label.pdf",
       sourceChecksum: "deadbeef",
       requestCropId: "potato",
     });
@@ -166,6 +180,7 @@ async function main() {
 
   try {
     const target = verifyProductRecord({
+      ...attest,
       registryRecordExists: true,
       registrationNumber: "KZ-98",
       manufacturer: "AgroChem",
@@ -174,7 +189,6 @@ async function main() {
       formulation: "WP",
       approvedCrops: ["tomato"],
       approvedTargets: ["late-blight"],
-      labelUrl: "https://example.com/label.pdf",
       sourceChecksum: "cafebabe",
       requestCropId: "tomato",
       requestTarget: "aphid",
@@ -207,6 +221,7 @@ async function main() {
 
   try {
     const good = verifyProductRecord({
+      ...attest,
       registryRecordExists: true,
       registrationNumber: "KZ-96",
       manufacturer: "AgroChem",
@@ -215,7 +230,6 @@ async function main() {
       formulation: "WP",
       approvedCrops: ["tomato"],
       approvedTargets: ["late-blight"],
-      labelUrl: "https://example.com/label.pdf",
       sourceChecksum: "ff00",
       requestCropId: "tomato",
       requestTarget: "late-blight",

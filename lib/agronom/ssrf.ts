@@ -39,6 +39,9 @@ export async function assertSafeOutboundUrl(raw: string): Promise<URL> {
   if (process.env.NODE_ENV === "production" && u.protocol !== "https:") {
     throw new Error("https_required");
   }
+  if (u.username || u.password) {
+    throw new Error("credentials_not_allowed");
+  }
   const host = u.hostname.toLowerCase();
   if (BLOCKED_HOSTS.has(host) || host.endsWith(".local") || host.endsWith(".internal")) {
     throw new Error("host_blocked");

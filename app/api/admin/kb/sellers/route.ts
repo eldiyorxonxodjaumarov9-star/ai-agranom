@@ -1,6 +1,8 @@
 import { NextRequest, NextResponse } from "next/server";
 import { authenticateAdminRequest } from "@/lib/agronom/admin-auth";
 import { getPrisma, isDatabaseConfigured } from "@/server/kb/db/client";
+import { isPrivateIp } from "@/lib/agronom/ssrf";
+import { isIP } from "net";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
@@ -8,7 +10,10 @@ export const dynamic = "force-dynamic";
 function normalizeDomain(input: string): string {
   try {
     if (input.includes("://")) {
-      return new URL(input).hostname.toLowerCase().replace(/^www\./, "");
+      const u = new URL(input);
+      if (u.protocol !== "https:" && u.protocol !== "http:") return "";
+      if (u.username || u.password) return "";
+      return u.hostname.toLowerCase().replace(/^www\./, "");
     }
   } catch {
     /* fall through */
@@ -20,6 +25,14 @@ function normalizeDomain(input: string): string {
     .trim();
 }
 
+function isBlockedSellerHostname(domain: string): boolean {
+  if (!domain || domain === "localhost" || domain.endsWith(".local") || domain.endsWith(".internal"))
+    return true;
+  if (isIP(domain) && isPrivateIp(domain)) return true;
+  if (/^(127\.|10\.|192\.168\.|169\.254\.)/.test(domain)) return true;
+  return false;
+}
+
 /**
  * Admin seller / agro-dorixona domain allowlist.
  * Domains must be provided by the operator — never invent commercial sites.
@@ -27,7 +40,7 @@ function normalizeDomain(input: string): string {
 export async function GET(request: NextRequest) {
   const auth = authenticateAdminRequest(request);
   if (!auth.ok) {
-    return NextResponse.json(auth.response, { status: 401 });
+    return NextResponse.json(auth.response, { status: auth.status || 401 });
   }
   if (!isDatabaseConfigured()) {
     return NextResponse.json({
@@ -78,7 +91,7 @@ export async function GET(request: NextRequest) {
 export async function POST(request: NextRequest) {
   const auth = authenticateAdminRequest(request);
   if (!auth.ok) {
-    return NextResponse.json(auth.response, { status: 401 });
+    return NextResponse.json(auth.response, { status: auth.status || 401 });
   }
   if (!isDatabaseConfigured()) {
     return NextResponse.json(
@@ -112,22 +125,63 @@ export async function POST(request: NextRequest) {
           { status: 400 }
         );
       }
-      const enabled = Boolean(body.enabled);
+      const enabled = body.enabled === true;
+      if (enabled) {
+        const candidate = await prisma.sourceDiscoveryCandidate.findUnique({
+          where: { domain },
+        });
+        if (!candidate || candidate.status !== "APPROVED") {
+          return NextResponse.json(
+            {
+              success: false,
+              error: "discovery_not_approved",
+              hint: "Enable only after SourceDiscoveryCandidate status=APPROVED",
+            },
+            { status: 422 }
+          );
+        }
+        const existing = await prisma.sellerSource.findUnique({
+          where: { domain },
+        });
+        if (!existing || existing.robotsStatus !== "allowed") {
+          return NextResponse.json(
+            {
+              success: false,
+              error: "robots_not_allowed",
+              hint: "robotsStatus must be allowed (unknown/failed → fail-closed)",
+            },
+            { status: 422 }
+          );
+        }
+        if (
+          existing.tosStatus !== "allowed" &&
+          existing.tosStatus !== "reviewed_ok"
+        ) {
+          return NextResponse.json(
+            {
+              success: false,
+              error: "tos_not_reviewed",
+              hint: "Explicit ToS review required before enable",
+            },
+            { status: 422 }
+          );
+        }
+      }
       const source = await prisma.sellerSource.update({
         where: { domain },
         data: { enabled },
       });
-      return NextResponse.json({ success: true, source });
+      return NextResponse.json({ success: true, source, crawlEnabled: enabled });
     }
 
     const raw = String(body.domain || body.url || "");
     const domain = normalizeDomain(raw);
-    if (!domain || domain.length < 3 || !domain.includes(".")) {
+    if (!domain || domain.length < 3 || !domain.includes(".") || isBlockedSellerHostname(domain)) {
       return NextResponse.json(
         {
           success: false,
           error: "valid_domain_required",
-          hint: "Send a real seller hostname, e.g. example-agro.uz — do not invent domains in code.",
+          hint: "Send a public HTTPS seller hostname — localhost/private IPs blocked.",
         },
         { status: 400 }
       );
@@ -141,7 +195,7 @@ export async function POST(request: NextRequest) {
       typeof body.url === "string" && body.url.includes("://")
         ? body.url
         : `https://${domain}/`;
-    const enabled = body.enabled === true; // default off until robots/ToS reviewed
+    const enabled = false; // never enable on create — require set_enabled after review
     const crawlDelayMs =
       typeof body.crawlDelayMs === "number" && body.crawlDelayMs >= 1000
         ? Math.min(body.crawlDelayMs, 60_000)
@@ -179,7 +233,7 @@ export async function POST(request: NextRequest) {
       update: {
         sellerId: seller.id,
         baseUrl,
-        enabled,
+        // Do not flip enabled via upsert — use set_enabled after APPROVED+robots+ToS
         crawlDelayMs,
       },
     });

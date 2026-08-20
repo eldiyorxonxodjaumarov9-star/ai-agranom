@@ -22,7 +22,7 @@ export default function AdminKbProductsImportPage() {
 
   const openSession = async () => {
     if (!bootToken.trim()) {
-      setError("AGRO_API_KEY kiriting — cookie session ochiladi.");
+      setError("ADMIN_API_KEY kiriting — cookie session ochiladi.");
       return;
     }
     setError(null);
@@ -145,7 +145,7 @@ export default function AdminKbProductsImportPage() {
         <div className="flex flex-wrap gap-2 items-end">
           <label className="block space-y-1 text-sm grow">
             <span className="text-ink-muted">
-              AGRO_API_KEY (bir marta — httpOnly cookie)
+              ADMIN_API_KEY (bir marta — httpOnly cookie)
               {sessionReady ? " · session ochiq" : ""}
             </span>
             <input

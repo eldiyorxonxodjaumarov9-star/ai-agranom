@@ -72,6 +72,26 @@ model Source {
   @@index([checksum])
 }
 
+/// Persisted official registry export / attestation document (fail-closed verify).
+model OfficialSourceDocument {
+  id               String   @id @default(cuid())
+  country          String
+  officialSourceId String
+  officialHost     String
+  sha256           String
+  importedAt       DateTime
+  reviewStatus     String   @default("PENDING_REVIEW")
+  filename         String?
+  contentType      String?
+  byteSize         Int?
+  createdAt        DateTime @default(now())
+  updatedAt        DateTime @updatedAt
+
+  @@unique([sha256, country])
+  @@index([country, reviewStatus])
+  @@index([officialHost])
+}
+
 model Crop {
   id             String            @id
   scientificName String?

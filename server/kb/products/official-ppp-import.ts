@@ -247,20 +247,39 @@ export function parseOfficialPppSheetMatrix(
 }
 
 export async function parseOfficialPppXlsxBuffer(
-  buf: Buffer,
-  country: OfficialPppCountry
+  _buf: Buffer,
+  _country: OfficialPppCountry
 ): Promise<OfficialPppImportRow[]> {
-  const XLSX = await import("xlsx");
-  const wb = XLSX.read(buf, { type: "buffer" });
-  const sheetName = wb.SheetNames[0];
-  if (!sheetName) return [];
-  const sheet = wb.Sheets[sheetName];
-  const matrix = XLSX.utils.sheet_to_json<string[]>(sheet, {
-    header: 1,
-    defval: "",
-    raw: false,
-  }) as string[][];
-  return parseOfficialPppSheetMatrix(matrix, country);
+  // xlsx@0.18.x has known ReDoS (GHSA-5pgg-2g8v-p4x9) — disabled until a maintained parser ships.
+  throw new Error(
+    "XLSX_DISABLED: Convert the official registry sheet to CSV/JSON and re-upload."
+  );
+}
+
+export const IMPORT_LIMITS = {
+  maxBytes: 2_000_000,
+  maxRows: 5_000,
+  maxCellChars: 2_000,
+  maxCsvChars: 2_000_000,
+} as const;
+
+export function assertImportPayloadLimits(input: {
+  content?: string;
+  contentBase64?: string;
+  rowCount?: number;
+}): void {
+  if (input.content && input.content.length > IMPORT_LIMITS.maxCsvChars) {
+    throw new Error("IMPORT_TOO_LARGE");
+  }
+  if (
+    input.contentBase64 &&
+    Buffer.byteLength(input.contentBase64, "utf8") > IMPORT_LIMITS.maxBytes * 1.4
+  ) {
+    throw new Error("IMPORT_TOO_LARGE");
+  }
+  if ((input.rowCount || 0) > IMPORT_LIMITS.maxRows) {
+    throw new Error("IMPORT_TOO_MANY_ROWS");
+  }
 }
 
 export function extractTextFromPdfBytes(buf: Buffer): string {
@@ -531,6 +550,42 @@ export async function importOfficialPppRows(
     update: { accessedAt: new Date() },
   });
 
+  const payloadSha = sha(payload);
+  let persistedDocId = sourceDocumentId;
+  try {
+    const host =
+      country === "UZ" ? "agrokomakchi.uz" : "gov.kz";
+    const doc = await prisma.officialSourceDocument.upsert({
+      where: {
+        sha256_country: { sha256: payloadSha, country },
+      },
+      create: {
+        country,
+        officialSourceId: sid,
+        officialHost: host,
+        sha256: payloadSha,
+        importedAt: new Date(),
+        reviewStatus: "PENDING_REVIEW",
+        filename: meta.filename || null,
+        contentType: "text/csv",
+        byteSize: Buffer.byteLength(payload, "utf8"),
+      },
+      update: {
+        importedAt: new Date(),
+        filename: meta.filename || null,
+        // Never auto-APPROVE on re-import
+        reviewStatus: "PENDING_REVIEW",
+      },
+    });
+    persistedDocId = doc.id;
+    report.sourceProvenance.sourceDocumentId = persistedDocId;
+  } catch {
+    // Table may be missing pre-migration — products stay unverifiable
+    report.errors.push(
+      "OfficialSourceDocument unavailable — imports stay NEEDS_REVIEW"
+    );
+  }
+
   for (const row of rows) {
     try {
       if (!row.productName?.trim() || !row.registrationNumber?.trim()) {
@@ -617,7 +672,7 @@ export async function importOfficialPppRows(
           registrationStatus: regStatus as never,
           qualityScore: 40,
           checksum,
-          sourceDocumentId: row.sourceDocumentId || sourceDocumentId,
+          sourceDocumentId: persistedDocId,
           adminApproved: false,
           verifiedBy: null,
           verifiedAt: null,
@@ -637,7 +692,7 @@ export async function importOfficialPppRows(
           status: dbStatus as never,
           registrationStatus: regStatus as never,
           checksum,
-          sourceDocumentId: row.sourceDocumentId || sourceDocumentId,
+          sourceDocumentId: persistedDocId,
           adminApproved: false,
           verifiedBy: null,
           verifiedAt: null,

@@ -105,7 +105,25 @@ export async function fetchWithPolicy(
         throw new HttpFetchError(`HTTP ${res.status}`, res.status, false);
       }
 
+      const contentType = (res.headers.get("content-type") || "").toLowerCase();
+      if (
+        contentType &&
+        !/text\/|application\/(json|xml|xhtml|javascript|ld\+json)|image\/(svg)/i.test(
+          contentType
+        ) &&
+        !contentType.includes("charset")
+      ) {
+        // Soft allow common doc types used by KB; block obvious binaries for seller crawl
+        if (/octet-stream|zip|exe|wasm/i.test(contentType)) {
+          throw new HttpFetchError(`unsupported content-type`, res.status, false);
+        }
+      }
+
+      const maxBytes = 2_000_000;
       const body = method === "HEAD" ? "" : await res.text();
+      if (body.length > maxBytes) {
+        throw new HttpFetchError("response_too_large", res.status, false);
+      }
       const etag = res.headers.get("etag") || undefined;
       const lastModified = res.headers.get("last-modified") || undefined;
       const checksum = sha16(body || `${etag || ""}:${lastModified || ""}:${url}`);

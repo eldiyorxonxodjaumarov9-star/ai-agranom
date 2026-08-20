@@ -22,7 +22,7 @@ export const dynamic = "force-dynamic";
 
 /**
  * Protected Knowledge Base admin API (Phase 1 + Phase 2).
- * Auth: Bearer AGRO_API_KEY
+ * Auth: Bearer ADMIN_API_KEY or admin session cookie (never AGRO_API_KEY)
  *
  * GET views:
  *   sources | chunks | verified | sync-jobs | failed | duplicates |
@@ -32,10 +32,7 @@ export const dynamic = "force-dynamic";
 export async function GET(request: NextRequest) {
   const auth = authenticateAdminRequest(request);
   if (!auth.ok) {
-    return NextResponse.json(
-      { success: false, error: "Unauthorized" },
-      { status: 401 }
-    );
+    return NextResponse.json(auth.response, { status: auth.status || 401 });
   }
 
   const view = request.nextUrl.searchParams.get("view") || "verified";
@@ -139,10 +136,7 @@ export async function GET(request: NextRequest) {
 export async function POST(request: NextRequest) {
   const auth = authenticateAdminRequest(request);
   if (!auth.ok) {
-    return NextResponse.json(
-      { success: false, error: "Unauthorized" },
-      { status: 401 }
-    );
+    return NextResponse.json(auth.response, { status: auth.status || 401 });
   }
 
   try {

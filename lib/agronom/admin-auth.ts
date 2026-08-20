@@ -1,24 +1,21 @@
+/**
+ * Admin auth facade — public AGRO_API_KEY is never accepted.
+ */
 import type { NextRequest } from "next/server";
-import { authenticateRequest } from "@/lib/agronom/auth";
 import {
-  readAdminCookie,
-  verifyAdminCookie,
+  authenticateAdminRequest as authAdmin,
+  ADMIN_UNAUTHORIZED,
 } from "@/lib/agronom/admin-site-auth";
 
-const UNAUTHORIZED = {
-  success: false as const,
-  error: "Unauthorized",
-};
-
-export function authenticateAdminRequest(
-  request: NextRequest
-):
-  | { ok: true; keyFingerprint: string }
-  | { ok: false; response: typeof UNAUTHORIZED } {
-  const auth = authenticateRequest(request.headers.get("authorization"));
-  if (auth.ok) return auth;
-  if (verifyAdminCookie(readAdminCookie(request))) {
-    return { ok: true, keyFingerprint: "admin_cookie" };
-  }
-  return { ok: false, response: UNAUTHORIZED };
+export function authenticateAdminRequest(request: NextRequest):
+  | { ok: true; keyFingerprint: string; actorHash: string; via: "bearer" | "cookie" }
+  | { ok: false; response: typeof ADMIN_UNAUTHORIZED; status?: number } {
+  const r = authAdmin(request);
+  if (!r.ok) return r;
+  return {
+    ok: true,
+    keyFingerprint: r.actorHash,
+    actorHash: r.actorHash,
+    via: r.via,
+  };
 }

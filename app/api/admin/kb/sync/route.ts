@@ -14,10 +14,7 @@ export const maxDuration = 60;
 export async function POST(request: NextRequest) {
   const auth = authenticateAdminRequest(request);
   if (!auth.ok) {
-    return NextResponse.json(
-      { success: false, error: "Unauthorized" },
-      { status: 401 }
-    );
+    return NextResponse.json(auth.response, { status: auth.status || 401 });
   }
 
   try {

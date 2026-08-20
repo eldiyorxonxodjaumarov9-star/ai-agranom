@@ -179,7 +179,7 @@ export default function AdminKbPage() {
   const establishSession = async () => {
     const value = tokenInput.trim();
     if (!value) {
-      setError("AGRO_API_KEY kiriting — cookie session ochiladi (kalit saqlanmaydi).");
+      setError("ADMIN_API_KEY kiriting — cookie session ochiladi (kalit saqlanmaydi).");
       return;
     }
     setLoading(true);
@@ -325,7 +325,7 @@ export default function AdminKbPage() {
         <section className="flex flex-col gap-3 sm:flex-row sm:items-end">
           <label className="flex-1 space-y-1 text-sm">
             <span className="text-ink-muted">
-              AGRO_API_KEY (bir marta — httpOnly cookie session)
+              ADMIN_API_KEY (bir marta — httpOnly cookie session)
               {sessionReady ? " · session ochiq" : ""}
             </span>
             <input

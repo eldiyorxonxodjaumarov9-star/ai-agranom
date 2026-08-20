@@ -24,7 +24,7 @@ function normalizeDomain(input: string): string {
 export async function GET(request: NextRequest) {
   const auth = authenticateAdminRequest(request);
   if (!auth.ok) {
-    return NextResponse.json(auth.response, { status: 401 });
+    return NextResponse.json(auth.response, { status: auth.status || 401 });
   }
   if (!isDatabaseConfigured()) {
     return NextResponse.json({
@@ -61,7 +61,7 @@ export async function GET(request: NextRequest) {
 export async function POST(request: NextRequest) {
   const auth = authenticateAdminRequest(request);
   if (!auth.ok) {
-    return NextResponse.json(auth.response, { status: 401 });
+    return NextResponse.json(auth.response, { status: auth.status || 401 });
   }
   let body: Record<string, unknown>;
   try {

@@ -1,7 +1,10 @@
 /**
- * Product verification — never auto-VERIFIED from CSV/upload alone.
- * VERIFIED requires trusted official provenance + admin attestation.
+ * Product verification — fail-closed.
+ * VERIFIED requires persisted OfficialSourceDocument (APPROVED) + field checklist.
+ * Request booleans / verifiedBy from client are never trusted.
  */
+import { parseOfficialLabelUrl } from "./official-hosts";
+
 export type ProductVerifyInput = {
   registryRecordExists: boolean;
   registrationNumber?: string | null;
@@ -15,24 +18,27 @@ export type ProductVerifyInput = {
   formulationMatches?: boolean | null;
   approvedCrops?: string[] | null;
   approvedTargets?: string[] | null;
+  /** Must come from persisted ProductRegistration — not request override */
   registrationStatus?: string | null;
   labelUrl?: string | null;
   officialPdfUrl?: string | null;
   expiresAt?: string | Date | null;
   revoked?: boolean;
   sourceChecksum?: string | null;
+  /** Must match OfficialSourceDocument.id */
   sourceDocumentId?: string | null;
+  /** Server-loaded from OfficialSourceDocument.reviewStatus === APPROVED */
   trustedOfficialSource?: boolean;
-  /** Explicit admin attestation — required for VERIFIED */
+  officialHostTrusted?: boolean;
+  sourceDocumentSha256?: string | null;
+  sourceDocumentCountry?: string | null;
+  /** Server auth actor only */
   adminApproved?: boolean;
   verifiedBy?: string | null;
   verifiedAt?: string | Date | null;
-  lastVerifiedAt?: string | Date | null;
   conflictingEvidence?: boolean;
-  /** Filename / provenance guards */
   filename?: string | null;
   importKind?: string | null;
-  /** Recommendation context */
   requestCropId?: string | null;
   requestTarget?: string | null;
   requestRegion?: string | null;
@@ -41,7 +47,6 @@ export type ProductVerifyInput = {
 export type ProductVerifyStatus =
   | "VERIFIED"
   | "NEEDS_REVIEW"
-  | "AI_PARSED"
   | "CONFLICT"
   | "EXPIRED"
   | "REVOKED"
@@ -57,8 +62,6 @@ export type ProductVerifyResult = {
 };
 
 const FIXTURE_NAME_RE = /\b(fixture|sample|test|demo|mock)\b/i;
-const PLACEHOLDER_HOST_RE =
-  /example\.(gov\.)?uz|example\.com|localhost|127\.0\.0\.1/i;
 
 export function isFixtureOrSampleFilename(filename?: string | null): boolean {
   if (!filename?.trim()) return false;
@@ -66,18 +69,39 @@ export function isFixtureOrSampleFilename(filename?: string | null): boolean {
 }
 
 export function isPlaceholderLabelUrl(url?: string | null): boolean {
-  if (!url?.trim()) return true;
-  if (!/^https?:\/\//i.test(url)) return true;
-  try {
-    return PLACEHOLDER_HOST_RE.test(new URL(url).hostname);
-  } catch {
-    return true;
+  return !parseOfficialLabelUrl(url).ok;
+}
+
+function requireNonEmpty(
+  value: string | null | undefined,
+  matches: boolean | null | undefined,
+  label: string,
+  reasons: string[]
+): void {
+  const present = Boolean(value?.trim());
+  if (!present) {
+    reasons.push(`Missing/failed: ${label}`);
+    return;
+  }
+  if (matches === false) {
+    reasons.push(`Missing/failed: ${label} mismatch`);
   }
 }
 
-function hasOfficialLabel(input: ProductVerifyInput): boolean {
-  const url = input.labelUrl || input.officialPdfUrl;
-  return Boolean(url?.startsWith("http") && !isPlaceholderLabelUrl(url));
+function parseFutureExpiry(
+  expiresAt: string | Date | null | undefined
+): { ok: true; date: Date } | { ok: false; reason: string } {
+  if (expiresAt == null || expiresAt === "") {
+    return { ok: false, reason: "Missing/failed: expiry / validity date" };
+  }
+  const d = expiresAt instanceof Date ? expiresAt : new Date(String(expiresAt));
+  if (Number.isNaN(d.getTime())) {
+    return { ok: false, reason: "Missing/failed: expiry date unparseable" };
+  }
+  if (d.getTime() <= Date.now()) {
+    return { ok: false, reason: "Registration expired" };
+  }
+  return { ok: true, date: d };
 }
 
 export function verifyProductRecord(
@@ -85,7 +109,7 @@ export function verifyProductRecord(
 ): ProductVerifyResult {
   const reasons: string[] = [];
 
-  if (input.revoked) {
+  if (input.revoked || input.registrationStatus === "REVOKED") {
     return {
       status: "REVOKED",
       registrationStatus: "REVOKED",
@@ -94,20 +118,6 @@ export function verifyProductRecord(
       canRecommend: false,
       doseAllowed: false,
     };
-  }
-
-  if (input.expiresAt) {
-    const exp = new Date(input.expiresAt);
-    if (!Number.isNaN(exp.getTime()) && exp.getTime() < Date.now()) {
-      return {
-        status: "EXPIRED",
-        registrationStatus: "EXPIRED",
-        labelVerified: false,
-        reasons: ["Registration expired"],
-        canRecommend: false,
-        doseAllowed: false,
-      };
-    }
   }
 
   if (input.conflictingEvidence) {
@@ -121,102 +131,112 @@ export function verifyProductRecord(
     };
   }
 
-  const fixtureFile = isFixtureOrSampleFilename(input.filename);
-  const fieldChecks: Array<[boolean, string]> = [
-    [input.registryRecordExists, "official registry record"],
-    [Boolean(input.registrationNumber?.trim()), "registration number"],
-    [Boolean(input.registrationCountry?.trim()), "registration country"],
-    [
-      Boolean(input.manufacturer?.trim()) || input.manufacturerMatches !== false,
-      "manufacturer",
-    ],
-    [
-      Boolean(input.activeIngredient?.trim()) ||
-        input.activeIngredientMatches !== false,
-      "active ingredient",
-    ],
-    [
-      Boolean(input.formulation?.trim()) || input.formulationMatches !== false,
-      "formulation",
-    ],
-    [Boolean(input.approvedCrops && input.approvedCrops.length > 0), "approved crops"],
-    [
-      Boolean(input.approvedTargets && input.approvedTargets.length > 0),
-      "approved targets",
-    ],
-    [hasOfficialLabel(input), "official (non-placeholder) label/PDF URL"],
-    [Boolean(input.sourceChecksum), "source checksum"],
-    [Boolean(input.sourceDocumentId?.trim()), "source document ID"],
-    [input.trustedOfficialSource === true, "trusted official source"],
-    [Boolean(input.expiresAt), "expiry / validity date"],
-    [
-      input.registrationStatus === "ACTIVE" ||
-        input.registrationStatus === "EXPIRED" ||
-        input.registrationStatus === "REVOKED",
-      "explicit registration status",
-    ],
-  ];
-
-  for (const [ok, label] of fieldChecks) {
-    if (!ok) reasons.push(`Missing/failed: ${label}`);
+  const expiry = parseFutureExpiry(input.expiresAt);
+  if (!expiry.ok) {
+    if (expiry.reason === "Registration expired") {
+      return {
+        status: "EXPIRED",
+        registrationStatus: "EXPIRED",
+        labelVerified: false,
+        reasons: [expiry.reason],
+        canRecommend: false,
+        doseAllowed: false,
+      };
+    }
+    reasons.push(expiry.reason);
   }
 
+  const fixtureFile = isFixtureOrSampleFilename(input.filename);
   if (fixtureFile) {
     reasons.push("fixture/sample/test filename cannot be VERIFIED");
+  }
+
+  if (!input.registryRecordExists) {
+    reasons.push("Missing/failed: official registry record");
+  }
+  if (!input.registrationNumber?.trim()) {
+    reasons.push("Missing/failed: registration number");
+  }
+  if (!input.registrationCountry?.trim()) {
+    reasons.push("Missing/failed: registration country");
+  }
+
+  requireNonEmpty(
+    input.manufacturer,
+    input.manufacturerMatches,
+    "manufacturer",
+    reasons
+  );
+  requireNonEmpty(
+    input.activeIngredient,
+    input.activeIngredientMatches,
+    "active ingredient",
+    reasons
+  );
+  requireNonEmpty(
+    input.formulation,
+    input.formulationMatches,
+    "formulation",
+    reasons
+  );
+
+  if (!input.approvedCrops?.length) {
+    reasons.push("Missing/failed: approved crops");
+  }
+  if (!input.approvedTargets?.length) {
+    reasons.push("Missing/failed: approved targets");
+  }
+
+  const label = parseOfficialLabelUrl(input.labelUrl || input.officialPdfUrl);
+  if (!label.ok) {
+    reasons.push(`Missing/failed: official label (${label.reason})`);
+  }
+
+  if (!input.sourceChecksum?.trim()) {
+    reasons.push("Missing/failed: source checksum");
+  }
+  if (!input.sourceDocumentId?.trim()) {
+    reasons.push("Missing/failed: source document ID");
+  }
+  if (!input.sourceDocumentSha256?.trim()) {
+    reasons.push("Missing/failed: source document SHA-256");
+  }
+  if (input.trustedOfficialSource !== true) {
+    reasons.push("Missing/failed: trusted official source document not APPROVED");
+  }
+  if (input.officialHostTrusted !== true) {
+    reasons.push("Missing/failed: official host not trusted");
+  }
+  if (
+    input.sourceDocumentCountry &&
+    input.registrationCountry &&
+    input.sourceDocumentCountry !== input.registrationCountry
+  ) {
+    reasons.push("Missing/failed: source document country mismatch");
+  }
+
+  // Persisted registration must already be ACTIVE — never trust request override alone
+  if (input.registrationStatus !== "ACTIVE") {
+    reasons.push("Missing/failed: persisted registration status not ACTIVE");
   }
 
   const adminOk =
     input.adminApproved === true &&
     Boolean(input.verifiedBy?.trim()) &&
     Boolean(input.verifiedAt);
-
   if (!adminOk) {
-    reasons.push("Missing/failed: admin attestation (verifiedBy/verifiedAt)");
+    reasons.push("Missing/failed: admin attestation (server actor)");
   }
 
-  // Upload / parse path: never VERIFIED without full attestation
-  if (reasons.length > 0 || !adminOk || fixtureFile) {
+  if (reasons.length > 0) {
     const missingCount = reasons.filter((r) =>
       r.startsWith("Missing/failed:")
     ).length;
-    const incomplete =
-      missingCount >= 6 ||
-      (!input.registryRecordExists && !input.registrationNumber);
-
     return {
-      status: incomplete ? "INCOMPLETE" : "NEEDS_REVIEW",
+      status: missingCount >= 6 ? "INCOMPLETE" : "NEEDS_REVIEW",
       registrationStatus: "UNKNOWN",
       labelVerified: false,
-      reasons: [
-        ...reasons,
-        "Imported rows stay NEEDS_REVIEW until admin verify with official provenance",
-      ],
-      canRecommend: false,
-      doseAllowed: false,
-    };
-  }
-
-  const registrationStatus: ProductVerifyResult["registrationStatus"] =
-    input.registrationStatus === "EXPIRED"
-      ? "EXPIRED"
-      : input.registrationStatus === "REVOKED"
-        ? "REVOKED"
-        : input.registrationStatus === "ACTIVE"
-          ? "ACTIVE"
-          : "UNKNOWN";
-
-  if (registrationStatus !== "ACTIVE") {
-    return {
-      status:
-        registrationStatus === "EXPIRED"
-          ? "EXPIRED"
-          : registrationStatus === "REVOKED"
-            ? "REVOKED"
-            : "NEEDS_REVIEW",
-      registrationStatus:
-        registrationStatus === "UNKNOWN" ? "UNKNOWN" : registrationStatus,
-      labelVerified: false,
-      reasons: ["Registration not ACTIVE"],
+      reasons,
       canRecommend: false,
       doseAllowed: false,
     };
@@ -224,7 +244,6 @@ export function verifyProductRecord(
 
   let canRecommend = true;
   const recReasons: string[] = [];
-
   if (input.requestCropId) {
     const cropOk = (input.approvedCrops || []).some((c) =>
       c.toLowerCase().includes(input.requestCropId!.toLowerCase())
@@ -244,16 +263,12 @@ export function verifyProductRecord(
     }
   }
 
-  const labelVerified = true;
-  const doseAllowed =
-    labelVerified &&
-    hasOfficialLabel(input) &&
-    Boolean(input.concentration?.trim());
+  const doseAllowed = Boolean(input.concentration?.trim());
 
   return {
     status: "VERIFIED",
     registrationStatus: "ACTIVE",
-    labelVerified,
+    labelVerified: true,
     reasons:
       recReasons.length > 0
         ? ["All verification checks passed", ...recReasons]
@@ -263,7 +278,6 @@ export function verifyProductRecord(
   };
 }
 
-/** Chat must never invent doses — only official label text. */
 export function formatDoseFromLabel(
   officialDoseText?: string | null
 ): string | null {
