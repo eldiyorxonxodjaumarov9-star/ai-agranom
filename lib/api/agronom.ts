@@ -1,5 +1,6 @@
 import { getChatEndpoint } from "@/lib/config/api";
 import type { ChatApiResponse } from "@/lib/agronom/api-types";
+import { sanitizeDisplayText } from "@/lib/agronom/display-sanitize";
 
 const ERROR_MESSAGE = "AI javob berishda muammo bo'ldi";
 
@@ -16,6 +17,8 @@ export interface ChatRequestOptions {
   images?: string[];
   cropMemory?: string;
   weather?: string;
+  region?: string;
+  crop?: string;
 }
 
 let sessionReady: Promise<void> | null = null;
@@ -34,10 +37,57 @@ async function ensureSiteChatSession(): Promise<void> {
   await sessionReady;
 }
 
+async function siteVisionAnalyze(
+  options: ChatRequestOptions,
+  callbacks: AgronomStreamCallbacks
+): Promise<void> {
+  await ensureSiteChatSession();
+  const images = (options.images || []).map((url) => ({ url }));
+  const res = await fetch("/api/chat/vision", {
+    method: "POST",
+    credentials: "include",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({
+      images,
+      message: options.message,
+      language: options.language ?? "auto",
+      sessionId: options.sessionId,
+      region: options.region,
+      crop: options.crop,
+    }),
+  });
+  const data = (await res.json().catch(() => ({}))) as {
+    success?: boolean;
+    recommendation?: string;
+    analysis?: { summary?: string };
+    error?: string;
+  };
+  if (!res.ok || data.success === false) {
+    callbacks.onError(data.error || ERROR_MESSAGE);
+    return;
+  }
+  const text = sanitizeDisplayText(
+    data.recommendation || data.analysis?.summary || ERROR_MESSAGE
+  );
+  // Simulate SSE-compatible chunking for UI
+  const step = 64;
+  let acc = "";
+  for (let i = 0; i < text.length; i += step) {
+    acc = text.slice(0, i + step);
+    callbacks.onChunk(acc);
+  }
+  callbacks.onDone(text);
+}
+
 export async function streamAgronomReply(
   options: ChatRequestOptions,
   callbacks: AgronomStreamCallbacks
 ): Promise<void> {
+  if (options.images && options.images.length > 0) {
+    await siteVisionAnalyze(options, callbacks);
+    return;
+  }
+
   await ensureSiteChatSession();
 
   const response = await fetch(getChatEndpoint(true), {
@@ -51,7 +101,6 @@ export async function streamAgronomReply(
       message: options.message,
       language: options.language ?? "auto",
       sessionId: options.sessionId,
-      images: options.images,
       cropMemory: options.cropMemory,
       weather: options.weather,
     }),
@@ -102,11 +151,11 @@ export async function streamAgronomReply(
 
         if (parsed.content) {
           fullAnswer += parsed.content;
-          callbacks.onChunk(fullAnswer);
+          callbacks.onChunk(sanitizeDisplayText(fullAnswer));
         }
 
         if (parsed.done && parsed.answer) {
-          fullAnswer = parsed.answer;
+          fullAnswer = sanitizeDisplayText(parsed.answer);
         }
       } catch {
         // skip
@@ -114,5 +163,5 @@ export async function streamAgronomReply(
     }
   }
 
-  callbacks.onDone(fullAnswer);
+  callbacks.onDone(sanitizeDisplayText(fullAnswer));
 }

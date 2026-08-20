@@ -15,7 +15,8 @@ import type {
 } from "@/lib/agronom/api-types";
 import { resolveResponseLanguage } from "@/lib/agronom/language";
 import type { RagRetrievalResult } from "@/server/kb/types";
-import { stripAgentMeta } from "@/lib/platform/agent-meta";
+import type { AgronomStructuredResponse } from "@/server/schemas/agronom-response";
+import { sanitizeDisplayText } from "@/lib/agronom/display-sanitize";
 
 const AI_ERROR: ChatApiErrorResponse = {
   success: false,
@@ -53,7 +54,6 @@ async function toRequest(input: ProcessChatInput): Promise<AgronomRequest> {
   if (input.greenhouse !== undefined) {
     extras.push(`Greenhouse: ${input.greenhouse ? "yes" : "no"}`);
   }
-  // imageIds accepted for forward-compat but unused until storage exists
   if (input.imageIds?.length) {
     extras.push(`imageIds_ignored:${input.imageIds.length}`);
   }
@@ -62,7 +62,6 @@ async function toRequest(input: ProcessChatInput): Promise<AgronomRequest> {
       ? `${input.message}\n\n(${extras.join("; ")})`
       : input.message;
 
-  // Never pass client weather; optionally attach server weather for known region ids
   let weather: string | undefined;
   try {
     if (input.region) {
@@ -90,21 +89,31 @@ async function toRequest(input: ProcessChatInput): Promise<AgronomRequest> {
 }
 
 function enrichResponse(
-  answer: string,
+  displayText: string,
   language: string,
-  rag: RagRetrievalResult | null
+  rag: RagRetrievalResult | null,
+  structured?: AgronomStructuredResponse | null
 ): ChatApiSuccessResponse {
-  const { meta } = stripAgentMeta(answer);
+  const answer = sanitizeDisplayText(displayText);
   const sources =
     rag?.sources?.map((s) => ({
       organization: s.organization,
       title: s.title,
       url: s.url,
-    })) ?? meta?.sources;
+    })) ?? undefined;
 
-  const confidence = rag?.confidence;
+  const confidence =
+    typeof structured?.confidence === "number"
+      ? structured.confidence
+      : rag?.confidence;
+
   const requiresExpertReview =
-    typeof confidence === "number" ? confidence < 0.45 : undefined;
+    structured?.requiresExpertReview ??
+    (typeof confidence === "number" ? confidence < 0.45 : undefined);
+
+  const products = structured?.productCandidates?.length
+    ? structured.productCandidates
+    : undefined;
 
   return {
     success: true,
@@ -113,7 +122,7 @@ function enrichResponse(
     service: SERVICE_NAME,
     ...(sources?.length ? { sources } : {}),
     ...(typeof confidence === "number" ? { confidence } : {}),
-    ...(meta?.products?.length ? { products: meta.products } : {}),
+    ...(products?.length ? { products } : {}),
     ...(requiresExpertReview !== undefined ? { requiresExpertReview } : {}),
   };
 }
@@ -122,16 +131,20 @@ export async function processChat(
   input: ProcessChatInput
 ): Promise<ChatApiSuccessResponse | ChatApiErrorResponse> {
   try {
-    const { answer, rag } = await generateAgronomAnswer(await toRequest(input));
+    const { answer, structured, rag } = await generateAgronomAnswer(
+      await toRequest(input)
+    );
+    const clean = sanitizeDisplayText(answer);
 
     if (input.sessionId) {
-      await appendSessionHistoryAsync(input.sessionId, input.message, answer);
+      await appendSessionHistoryAsync(input.sessionId, input.message, clean);
     }
 
     return enrichResponse(
-      answer,
+      clean,
       responseLanguage(input.language, input.message),
-      rag
+      rag,
+      structured
     );
   } catch (error) {
     console.error("[agronom/chat] Error:", error);
@@ -143,6 +156,7 @@ export async function* processChatStream(
   input: ProcessChatInput
 ): AsyncGenerator<string, string, unknown> {
   let fullAnswer = "";
+  let structured: AgronomStructuredResponse | null = null;
 
   const gen = streamAgronomAnswer(await toRequest(input));
   let next = await gen.next();
@@ -151,10 +165,19 @@ export async function* processChatStream(
     yield next.value;
     next = await gen.next();
   }
+  if (next.done && next.value) {
+    structured = next.value.structured;
+    fullAnswer = sanitizeDisplayText(next.value.answer || fullAnswer);
+  } else {
+    fullAnswer = sanitizeDisplayText(fullAnswer);
+  }
 
   if (input.sessionId) {
     await appendSessionHistoryAsync(input.sessionId, input.message, fullAnswer);
   }
 
+  // Attach structured on the generator return value via fullAnswer only;
+  // chat-route uses yielded chunks + final answer string.
+  void structured;
   return fullAnswer;
 }

@@ -15,5 +15,29 @@ export function getOpenAIClient(): OpenAI {
   return client;
 }
 
-export const OPENAI_MODEL = process.env.OPENAI_MODEL || "gpt-5.4-mini";
-export const MAX_OUTPUT_TOKENS = 500;
+/** Canonical text model (Structured Outputs). */
+export const OPENAI_TEXT_MODEL =
+  process.env.OPENAI_TEXT_MODEL ||
+  process.env.OPENAI_MODEL ||
+  "gpt-5.4-mini";
+
+/** Canonical vision model. */
+export const OPENAI_VISION_MODEL =
+  process.env.OPENAI_VISION_MODEL ||
+  process.env.OPENAI_MODEL ||
+  "gpt-5.4-mini";
+
+/** @deprecated use OPENAI_TEXT_MODEL */
+export const OPENAI_MODEL = OPENAI_TEXT_MODEL;
+
+export const MAX_OUTPUT_TOKENS = Number(
+  process.env.OPENAI_MAX_OUTPUT_TOKENS || 1800
+);
+
+export type VisionImageDetail = "low" | "high" | "original";
+
+export function getVisionImageDetail(): VisionImageDetail {
+  const v = (process.env.VISION_IMAGE_DETAIL || "high").toLowerCase();
+  if (v === "low" || v === "original" || v === "high") return v;
+  return "high";
+}
