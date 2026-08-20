@@ -1,0 +1,13 @@
+[
+  {
+    "externalId": "uz-ppp-placeholder",
+    "url": "https://agrokomakchi.uz/minerals/",
+    "title": "Uzbekistan PPP registry — admin import required",
+    "entityType": "product",
+    "language": "uz",
+    "keywords": ["ppp", "pestisid", "ro'yxat", "uzbekistan"],
+    "body": "Official Uzbekistan plant protection product listings are served via authenticated agrokomakchi.uz / reg.efito.uz (egov SSO). Public unauthenticated CSV/JSON dump was not available at probe time. Product rows must be imported by admin from an official CSV, JSON, XLSX, or structured PDF export. Seller catalogs never verify registration.",
+    "license": "official_public_registry",
+    "publishedAt": "2026-08-20"
+  }
+]

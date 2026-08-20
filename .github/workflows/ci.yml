@@ -1,0 +1,50 @@
+# PR CI — no production DB, no seller crawl, no migrations
+name: ci
+
+on:
+  pull_request:
+  push:
+    branches: [feature/agronom-diagnosis-safe-ingestion]
+
+jobs:
+  check:
+    runs-on: ubuntu-latest
+    env:
+      # Intentionally unset DATABASE_URL for unit tests (corpus fallback).
+      # Validate/build steps set a placeholder URL only.
+      RUN_DB_MIGRATIONS: ""
+      AGRO_API_KEY: ci_public_key_not_for_admin
+      ADMIN_API_KEY: ci_admin_key_separate
+      ADMIN_COOKIE_SECRET: ci_admin_cookie_secret
+      NODE_ENV: test
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: "20"
+          cache: npm
+      - name: Install
+        run: npm ci
+      - name: Secret scan (changed files)
+        run: node scripts/ci-secret-scan.js
+      - name: Typecheck
+        run: npm run typecheck
+      - name: Unit tests
+        run: npm test
+      - name: Prisma validate
+        env:
+          DATABASE_URL: postgresql://ci:ci@127.0.0.1:5432/ci
+        run: npx prisma validate
+      - name: Diff check
+        run: git diff --check
+      - name: Build without migrations
+        env:
+          DATABASE_URL: postgresql://ci:ci@127.0.0.1:5432/ci
+          RUN_DB_MIGRATIONS: ""
+        run: npm run build
+      - name: Dependency audit gate
+        run: node scripts/ci-npm-audit.js
+      - name: Ensure xlsx absent
+        run: |
+          node -e "const p=require('./package.json'); if (p.dependencies && p.dependencies.xlsx) { console.error('xlsx dependency must not ship'); process.exit(1); }"
+          node -e "try { require.resolve('xlsx'); console.error('xlsx module resolvable'); process.exit(1); } catch { console.log('xlsx: absent'); }"

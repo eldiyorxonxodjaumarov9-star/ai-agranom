@@ -72,6 +72,26 @@ model Source {
   @@index([checksum])
 }
 
+/// Persisted official registry export / attestation document (fail-closed verify).
+model OfficialSourceDocument {
+  id               String   @id @default(cuid())
+  country          String
+  officialSourceId String
+  officialHost     String
+  sha256           String
+  importedAt       DateTime
+  reviewStatus     String   @default("PENDING_REVIEW")
+  filename         String?
+  contentType      String?
+  byteSize         Int?
+  createdAt        DateTime @default(now())
+  updatedAt        DateTime @updatedAt
+
+  @@unique([sha256, country])
+  @@index([country, reviewStatus])
+  @@index([officialHost])
+}
+
 model Crop {
   id             String            @id
   scientificName String?
@@ -333,6 +353,11 @@ model Product {
   qualityScore         Int                   @default(40)
   checksum             String?
   version              Int                   @default(1)
+  /// Official export / document id from trusted registry provenance
+  sourceDocumentId     String?
+  adminApproved        Boolean               @default(false)
+  verifiedBy           String?
+  verifiedAt           DateTime?
   lastVerifiedAt       DateTime?
   deletedAt            DateTime?
   createdAt            DateTime              @default(now())
@@ -342,6 +367,7 @@ model Product {
   @@index([status, registrationStatus, labelVerified])
   @@index([name])
   @@index([checksum])
+  @@index([adminApproved, verifiedAt])
 }
 
 model ProductRegistration {
@@ -543,4 +569,146 @@ model AdminAuditLog {
   createdAt  DateTime @default(now())
 
   @@index([createdAt])
+}
+
+/// Seller / agro-pharmacy (commercial layer — not legal proof of registration)
+model Seller {
+  id        String         @id @default(cuid())
+  name      String
+  country   String?
+  region    String?
+  verified  Boolean        @default(false)
+  status    KbStatus       @default(NEEDS_REVIEW)
+  createdAt DateTime       @default(now())
+  updatedAt DateTime       @updatedAt
+  sources   SellerSource[]
+  offers    ProductOffer[]
+
+  @@index([status, country])
+  @@index([name])
+}
+
+model SellerSource {
+  id              String    @id @default(cuid())
+  sellerId        String
+  seller          Seller    @relation(fields: [sellerId], references: [id], onDelete: Cascade)
+  domain          String
+  baseUrl         String
+  sourceType      String    @default("SELLER_OFFER")
+  enabled         Boolean   @default(false)
+  robotsStatus    String    @default("unknown")
+  tosStatus       String    @default("unknown")
+  licenseNote     String?
+  crawlDelayMs    Int       @default(3000)
+  parserVersion   String    @default("1")
+  lastSuccessAt   DateTime?
+  lastErrorAt     DateTime?
+  lastError       String?
+  createdAt       DateTime  @default(now())
+  updatedAt       DateTime  @updatedAt
+
+  @@unique([domain])
+  @@index([enabled, sourceType])
+}
+
+model ProductOffer {
+  id              String               @id @default(cuid())
+  sellerId        String
+  seller          Seller               @relation(fields: [sellerId], references: [id], onDelete: Cascade)
+  productId       String?
+  sellerSku       String?
+  tradeName       String
+  packSize        String?
+  price           Float?
+  currency        String?              @default("UZS")
+  stockStatus     String?
+  provenanceJson  Json?
+  checksum        String?
+  firstSeenAt     DateTime             @default(now())
+  lastSeenAt      DateTime             @default(now())
+  lastCheckedAt   DateTime?
+  createdAt       DateTime             @default(now())
+  updatedAt       DateTime             @updatedAt
+  priceSnapshots  OfferPriceSnapshot[]
+
+  @@index([sellerId, tradeName])
+  @@index([productId])
+  @@index([checksum])
+}
+
+model OfferPriceSnapshot {
+  id          String       @id @default(cuid())
+  offerId     String
+  offer       ProductOffer @relation(fields: [offerId], references: [id], onDelete: Cascade)
+  price       Float?
+  currency    String?
+  stockStatus String?
+  capturedAt  DateTime     @default(now())
+
+  @@index([offerId, capturedAt])
+}
+
+model SourceDiscoveryCandidate {
+  id           String   @id @default(cuid())
+  url          String
+  domain       String
+  discoveredBy String
+  status       String   @default("PENDING_REVIEW")
+  reviewNotes  String?
+  createdAt    DateTime @default(now())
+  updatedAt    DateTime @updatedAt
+
+  @@unique([domain])
+  @@index([status])
+}
+
+model IngestionRun {
+  id             String          @id @default(cuid())
+  adapter        String
+  status         String          @default("pending")
+  cursor         String?
+  leaseUntil     DateTime?
+  importedCount  Int             @default(0)
+  updatedCount   Int             @default(0)
+  skippedCount   Int             @default(0)
+  failedCount    Int             @default(0)
+  error          String?
+  startedAt      DateTime        @default(now())
+  finishedAt     DateTime?
+  createdAt      DateTime        @default(now())
+  updatedAt      DateTime        @updatedAt
+  items          IngestionItem[]
+
+  @@index([adapter, status])
+}
+
+model IngestionItem {
+  id         String       @id @default(cuid())
+  runId      String
+  run        IngestionRun @relation(fields: [runId], references: [id], onDelete: Cascade)
+  externalId String
+  url        String?
+  status     String
+  checksum   String?
+  error      String?
+  createdAt  DateTime     @default(now())
+  updatedAt  DateTime     @updatedAt
+
+  @@unique([runId, externalId])
+}
+
+model ProductAlias {
+  id                 String   @id @default(cuid())
+  tradeName          String
+  language           String?
+  normalizedForm     String
+  manufacturer       String?
+  productId          String?
+  mappingConfidence  Float    @default(0)
+  status             KbStatus @default(NEEDS_REVIEW)
+  createdAt          DateTime @default(now())
+  updatedAt          DateTime @updatedAt
+
+  @@index([normalizedForm])
+  @@index([status, productId])
 }

@@ -1,58 +1,144 @@
 import { NextRequest, NextResponse } from "next/server";
-import { authenticateRequest } from "@/lib/agronom/auth";
+import { authenticateAdminRequest } from "@/lib/agronom/admin-auth";
 import {
-  importKzPppRows,
-  parseKzPppCsv,
-  parseKzPppJson,
-} from "@/server/kb/products/kz-ppp-import";
+  demoteUntrustedProducts,
+  importOfficialPppRows,
+  parseOfficialPppCsv,
+  parseOfficialPppJson,
+  parseOfficialPppPdfBuffer,
+  assertImportPayloadLimits,
+  type OfficialPppCountry,
+} from "@/server/kb/products/official-ppp-import";
+import {
+  getUzRegistryRemoteStatus,
+  UZ_REGISTRY_BLOCKER,
+} from "@/server/kb/adapters/uz-registry";
+import { isFixtureOrSampleFilename } from "@/server/kb/products/verify";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
 export const maxDuration = 120;
 
+function resolveCountry(raw: unknown): OfficialPppCountry {
+  const c = String(raw || "KZ").toUpperCase();
+  return c === "UZ" ? "UZ" : "KZ";
+}
+
+export async function GET(request: NextRequest) {
+  const auth = authenticateAdminRequest(request);
+  if (!auth.ok) {
+    return NextResponse.json(auth.response, { status: auth.status || 401 });
+  }
+  return NextResponse.json({
+    success: true,
+    uz: getUzRegistryRemoteStatus(),
+    note: "Uploads never auto-VERIFIED. Use dryRun=true to preview. Admin verify API required for VERIFIED.",
+  });
+}
+
 /**
  * POST /api/admin/kb/products/import
- * { filename, content, format: 'csv'|'json' }
+ * { filename, content|contentBase64, format, country, dryRun?, action? }
+ * action: 'demote_fixture' — soft-demote known untrusted fixture trade names
  */
 export async function POST(request: NextRequest) {
-  const auth = authenticateRequest(request.headers.get("authorization"));
+  const auth = authenticateAdminRequest(request);
   if (!auth.ok) {
-    return NextResponse.json(
-      { success: false, error: "Unauthorized" },
-      { status: 401 }
-    );
+    return NextResponse.json(auth.response, {
+      status: auth.status || 401,
+    });
   }
 
   try {
     const body = await request.json();
-    const content = String(body?.content || "");
-    const filename = String(body?.filename || "upload.csv");
-    const format = String(body?.format || "csv").toLowerCase();
 
-    if (!content.trim()) {
-      return NextResponse.json(
-        { success: false, error: "content empty" },
-        { status: 400 }
-      );
+    if (body?.action === "demote_fixture") {
+      const result = await demoteUntrustedProducts({
+        names: [
+          "Ridomil Gold",
+          "Topaz 100",
+          "Aktara 25",
+          "Expired Demo",
+        ],
+        registrationNumbers: [
+          "UZ-PPP-2024-001",
+          "UZ-PPP-2024-002",
+          "UZ-PPP-2023-015",
+          "UZ-PPP-2018-099",
+        ],
+        actorHash: auth.keyFingerprint,
+        reason:
+          "No proven official UZ registry document/label; fixture example.gov.uz provenance",
+      });
+      return NextResponse.json({ success: true, ...result });
     }
 
-    if (filename.toLowerCase().endsWith(".xlsx") || format === "xlsx") {
+    const filename = String(body?.filename || "upload.csv");
+    const format = String(body?.format || "csv").toLowerCase();
+    const country = resolveCountry(body?.country);
+    const dryRun = body?.dryRun === true;
+    const content = typeof body?.content === "string" ? body.content : "";
+    const contentBase64 =
+      typeof body?.contentBase64 === "string" ? body.contentBase64 : "";
+
+    const lower = filename.toLowerCase();
+    const isXlsx =
+      format === "xlsx" || lower.endsWith(".xlsx") || lower.endsWith(".xls");
+    const isPdf = format === "pdf" || lower.endsWith(".pdf");
+    const isJson = format === "json" || lower.endsWith(".json");
+
+    try {
+      assertImportPayloadLimits({
+        content,
+        contentBase64,
+      });
+    } catch (e) {
       return NextResponse.json(
         {
           success: false,
-          error: "XLSX_NOT_INLINE",
-          hint: "Export the official registry sheet as CSV/JSON, then re-upload. Native XLSX parsing is not enabled in the serverless bundle.",
+          error: e instanceof Error ? e.message : "IMPORT_TOO_LARGE",
         },
-        { status: 400 }
+        { status: 413 }
       );
     }
 
     let rows;
+    let parseHint: string | undefined;
+
     try {
-      rows =
-        format === "json" || filename.toLowerCase().endsWith(".json")
-          ? parseKzPppJson(content)
-          : parseKzPppCsv(content);
+      if (isXlsx) {
+        return NextResponse.json(
+          {
+            success: false,
+            error: "XLSX_DISABLED",
+            hint: "xlsx parser removed (GHSA-5pgg-2g8v-p4x9). Export CSV/JSON.",
+          },
+          { status: 400 }
+        );
+      } else if (isPdf) {
+        const buf = contentBase64.trim()
+          ? Buffer.from(contentBase64, "base64")
+          : Buffer.from(content, "binary");
+        const parsed = parseOfficialPppPdfBuffer(buf, country);
+        rows = parsed.rows;
+        parseHint = parsed.hint;
+      } else if (isJson) {
+        if (!content.trim()) {
+          return NextResponse.json(
+            { success: false, error: "content empty" },
+            { status: 400 }
+          );
+        }
+        rows = parseOfficialPppJson(content, country);
+      } else {
+        if (!content.trim()) {
+          return NextResponse.json(
+            { success: false, error: "content empty" },
+            { status: 400 }
+          );
+        }
+        rows = parseOfficialPppCsv(content, country);
+      }
     } catch (e) {
       return NextResponse.json(
         {
@@ -66,19 +152,41 @@ export async function POST(request: NextRequest) {
 
     if (!rows.length) {
       return NextResponse.json(
-        { success: false, error: "no_rows_parsed" },
+        {
+          success: false,
+          error: "no_rows_parsed",
+          hint: parseHint,
+          uzRemote: country === "UZ" ? getUzRegistryRemoteStatus() : undefined,
+        },
         { status: 400 }
       );
     }
 
-    const report = await importKzPppRows(rows, {
+    const kind = isFixtureOrSampleFilename(filename)
+      ? "fixture_smoke"
+      : "admin_upload";
+
+    const report = await importOfficialPppRows(rows, {
+      country,
       filename,
-      kind: "admin_upload",
+      kind,
+      dryRun,
+      // Uploads never carry admin approval — VERIFIED only via verify API
+      adminApproved: false,
+      trustedOfficialSource: false,
+      remoteBlocker: country === "UZ" ? UZ_REGISTRY_BLOCKER : undefined,
     });
 
     console.info("[admin/kb/products/import]", {
       by: auth.keyFingerprint,
+      country,
+      dryRun: report.dryRun,
+      writeBlockedReason: report.writeBlockedReason,
       parsed: report.parsed,
+      imported: report.imported,
+      updated: report.updated,
+      skipped: report.skipped,
+      failed: report.failed,
       verified: report.verified,
       needsReview: report.needsReview,
     });
@@ -86,10 +194,9 @@ export async function POST(request: NextRequest) {
     return NextResponse.json({
       success: true,
       report,
+      uzRemote: country === "UZ" ? getUzRegistryRemoteStatus() : undefined,
       note:
-        report.verified === 0
-          ? "Zero VERIFIED is expected until registration number, label URL, crops, targets, and checksum all pass."
-          : undefined,
+        "Uploads never set VERIFIED/labelVerified. Admin attestation + official provenance required.",
     });
   } catch (err) {
     console.error(

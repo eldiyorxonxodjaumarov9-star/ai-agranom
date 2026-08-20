@@ -3,7 +3,7 @@ import {
   authorizeCronRequest,
   logCronUnauthorized,
 } from "@/lib/agronom/cron-auth";
-import { authenticateRequest } from "@/lib/agronom/auth";
+import { authenticateAdminRequest } from "@/lib/agronom/admin-auth";
 import {
   checkDatabaseHealth,
   getRecordCounts,
@@ -21,7 +21,7 @@ export const maxDuration = 300;
 /**
  * Protected corpus bootstrap (checkpoint/resume).
  * Auth: Bearer CRON_SECRET, or AGRO_API_KEY when KB_CRON_ALLOW_AGRO_KEY=1,
- * or admin AGRO_API_KEY via authenticateRequest for manual ops.
+ * or ADMIN_API_KEY / admin session cookie via authenticateAdminRequest.
  *
  * POST /api/admin/kb/bootstrap?force=1
  * GET  /api/admin/kb/bootstrap  → status only
@@ -30,21 +30,21 @@ function authorize(request: NextRequest): {
   ok: boolean;
   via?: string;
   fingerprint?: string;
+  status?: number;
 } {
   const cron = authorizeCronRequest(request);
   if (cron.ok) return { ok: true, via: cron.via, fingerprint: cron.fingerprint };
 
-  // Admin Bearer AGRO_API_KEY always allowed for this bootstrap control plane
-  // (separate from cron fallback flag) so operators can resume without CRON_SECRET.
-  const admin = authenticateRequest(request.headers.get("authorization"));
+  // Admin Bearer ADMIN_API_KEY or admin cookie (never public AGRO_API_KEY)
+  const admin = authenticateAdminRequest(request);
   if (admin.ok) {
-    return { ok: true, via: "agro_admin", fingerprint: admin.keyFingerprint };
+    return { ok: true, via: "admin", fingerprint: admin.keyFingerprint };
   }
 
   if (!cron.ok) {
     logCronUnauthorized("/api/admin/kb/bootstrap", cron);
   }
-  return { ok: false };
+  return { ok: false, status: admin.status || 401 };
 }
 
 export async function GET(request: NextRequest) {
@@ -52,7 +52,7 @@ export async function GET(request: NextRequest) {
   if (!auth.ok) {
     return NextResponse.json(
       { success: false, error: "Unauthorized" },
-      { status: 401 }
+      { status: auth.status || 401 }
     );
   }
   const status = await getBootstrapStatus();
@@ -72,7 +72,7 @@ export async function POST(request: NextRequest) {
   if (!auth.ok) {
     return NextResponse.json(
       { success: false, error: "Unauthorized" },
-      { status: 401 }
+      { status: auth.status || 401 }
     );
   }
 

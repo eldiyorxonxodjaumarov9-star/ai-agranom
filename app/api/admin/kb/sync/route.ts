@@ -1,5 +1,5 @@
 import { NextRequest, NextResponse } from "next/server";
-import { authenticateRequest } from "@/lib/agronom/auth";
+import { authenticateAdminRequest } from "@/lib/agronom/admin-auth";
 import { runSyncJob, adaptersForKind } from "@/server/kb/sync/runner";
 import type { SyncJobKind } from "@/server/kb/adapters/types";
 
@@ -12,12 +12,9 @@ export const maxDuration = 60;
  * Body: { "kind": "diseases"|"pests"|"product_registry"|"broken_links"|"full", "adapterIds"?: string[] }
  */
 export async function POST(request: NextRequest) {
-  const auth = authenticateRequest(request.headers.get("authorization"));
+  const auth = authenticateAdminRequest(request);
   if (!auth.ok) {
-    return NextResponse.json(
-      { success: false, error: "Unauthorized" },
-      { status: 401 }
-    );
+    return NextResponse.json(auth.response, { status: auth.status || 401 });
   }
 
   try {

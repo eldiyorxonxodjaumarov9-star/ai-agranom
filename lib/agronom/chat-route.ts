@@ -225,13 +225,19 @@ export async function handleChatPost(
           try {
             const gen = processChatStream(validated.data);
             let full = "";
-            for await (const chunk of gen) {
-              full = chunk;
+            let next = await gen.next();
+            while (!next.done) {
+              const chunk = next.value;
+              full += chunk;
               controller.enqueue(
                 encoder.encode(
                   `data: ${JSON.stringify({ content: chunk, done: false })}\n\n`
                 )
               );
+              next = await gen.next();
+            }
+            if (typeof next.value === "string" && next.value.trim()) {
+              full = next.value;
             }
             const lang = responseLanguage(
               validated.data.language,

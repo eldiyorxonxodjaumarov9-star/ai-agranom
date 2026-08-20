@@ -2,6 +2,14 @@
 const nextConfig = {
   reactStrictMode: true,
   poweredByHeader: false,
+  // App does not use next/image; disable Image Optimization so optional sharp/libvips
+  // is not on the user-facing request path (GHSA-f88m-g3jw-g9cj mitigation).
+  images: { unoptimized: true },
+  // Windows + Node 24: jest-worker multi-process page collection can abort with
+  // spawn UNKNOWN / UV_HANDLE_CLOSING. Cap workers locally; Vercel Linux is fine.
+  ...(process.platform === "win32"
+    ? { experimental: { cpus: 1, workerThreads: false } }
+    : {}),
   async headers() {
     return [
       {

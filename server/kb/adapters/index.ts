@@ -2,6 +2,7 @@ import { FAOAdapter } from "./fao";
 import { EPPOAdapter } from "./eppo";
 import { USDAAdapter } from "./usda";
 import { KazakhstanOfficialRegistryAdapter } from "./kz-registry";
+import { UzbekistanOfficialRegistryAdapter } from "./uz-registry";
 import type { SourceAdapter } from "./types";
 
 export function getAllAdapters(): SourceAdapter[] {
@@ -10,6 +11,7 @@ export function getAllAdapters(): SourceAdapter[] {
     new EPPOAdapter(),
     new USDAAdapter(),
     new KazakhstanOfficialRegistryAdapter(),
+    new UzbekistanOfficialRegistryAdapter(),
   ];
 }
 
@@ -22,5 +24,6 @@ export {
   EPPOAdapter,
   USDAAdapter,
   KazakhstanOfficialRegistryAdapter,
+  UzbekistanOfficialRegistryAdapter,
 };
 export type { SourceAdapter, AdapterRunResult } from "./types";
